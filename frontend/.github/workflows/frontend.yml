@@ -14,5 +14,5 @@ jobs:
         steps:
             - name: Deploy to Render (staging)
               env: 
-                RENDER_DEPLOY_HOOK_URL_STAGING: ${{ secrets.RENDER_DEPLOY_HOOK_URL_STAGING }}
-              run: curl -fsSL "$RENDER_DEPLOY_HOOK_URL_STAGING"
+                VERCEL_DEPLOY_HOOK_URL_STAGING: ${{ secrets.VERCEL_DEPLOY_HOOK_URL_STAGING }}
+              run: curl -fsSL "$VERCEL_DEPLOY_HOOK_URL_STAGING"
