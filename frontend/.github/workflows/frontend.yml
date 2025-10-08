@@ -1,0 +1,18 @@
+name: Frontend Deploy (Next.js)
+
+on:
+    workflow_run:
+        workflows: [CI]
+        types: [completed]
+
+jobs: 
+    deploy_staging:
+        if: >
+            github.event.workflow_run.conclusion == 'success' &&
+            github.event.workflow_run.conclusion == 'staging'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Deploy to Render (staging)
+              env: 
+                VERCEL_DEPLOY_HOOK_URL_STAGING: ${{ secrets.VERCEL_DEPLOY_HOOK_URL_STAGING }}
+              run: curl -fsSL "$VERCEL_DEPLOY_HOOK_URL_STAGING"
