@@ -15,8 +15,21 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from django.http import HttpResponseRedirect, JsonResponse
+
+def root_redirect(_):
+    return HttpResponseRedirect("http://localhost:3000/")
+
+def whoami(request):
+    if request.user.is_authenticated:
+        return JsonResponse({"authenticated": True, "email": request.user.email})
+    return JsonResponse({"authenticated": False})
 
 urlpatterns = [
+    path('', root_redirect),
+    path('accounts/', include("allauth.urls")),
     path('admin/', admin.site.urls),
+    path('api/', include("api.urls")),
+    path('whoami/', whoami)
 ]

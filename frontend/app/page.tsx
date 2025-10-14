@@ -46,7 +46,7 @@ export default function Home() {
           </p>
 
           <div className="mt-8 text-inter">
-            <GoogleButton href="/api/auth/signin">Login with Google</GoogleButton>
+            <GoogleButton />
           </div>
         </div>
       </section>

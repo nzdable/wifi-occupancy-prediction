@@ -16,7 +16,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cinzel.variable} ${openSans.variable} ${garamond.variable}`}>
+    <html 
+    lang="en"
+    suppressHydrationWarning
+    className={`${inter.variable} ${cinzel.variable} ${openSans.variable} ${garamond.variable}`}>
       <body className="min-h-screen bg-[#030B3A] text-white antialiased font-inter">
         {children}
       </body>
