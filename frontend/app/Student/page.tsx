@@ -2,6 +2,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import LogoutButton from "../Components/LogoutButton";
+import LibraryCard from "../Components/LibraryCard";
 
 export default async function StudentPage() {
   // 👇 await it
@@ -23,10 +24,15 @@ export default async function StudentPage() {
   if (!data.authenticated) redirect("/");
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-[#030B3A] text-white">
-      <h1 className="text-3xl font-bold mb-2">Welcome!</h1>
-      <p className="opacity-80">Signed in as {data.email}</p>
-      <LogoutButton/>
+    <main className="min-h-screen bg-[#030B3A] text-white flex flex-col items-center p-10 space-y-10">
+      <header className="bg-gradient-to-r from-addu-navy via-addu-royal to-addu-indigo py-6 text-center text-3xl font-cinzel font-semibold w-full">
+        Library Occupancy Dashboard
+      </header>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-6xl">
+        <LibraryCard name="Gisbert Library" occupancy={72}/>
+        <LibraryCard name="American Corner" occupancy={54}/>
+        <LibraryCard name="Mig Pro" occupancy={28} />
+      </div>
     </main>
   );
 }
