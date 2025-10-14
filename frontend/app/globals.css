@@ -16,6 +16,16 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* === AdDU Brand Palette === */
+  --color-addu-navy:   #040354;
+  --color-addu-indigo: #1611B1;
+  --color-addu-royal:  #2F3590;
+  --color-addu-yellow: #FDF036;
+  --color-addu-amber:  #FFDB58;
+  --color-addu-gold:   #FCCA27;
+  --color-addu-ink:    #0A0F3D;
+  --color-addu-mist:   #E6E9F9;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,4 +55,20 @@ body {
 
 .font-garamond {
   font-family: var(--font-garamond);
+}
+
+h1 {
+  font-family: var(--font-cinzel);
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+h2 {
+  font-family: var(--font-open-sans);
+  font-size: 1.25rem;
+}
+
+p,
+li {
+  font-family: var(--font-inter);
 }

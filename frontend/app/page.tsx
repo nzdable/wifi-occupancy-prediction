@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import GoogleButton from "./Components/GoogleButton";
 
 export default function Home() {
