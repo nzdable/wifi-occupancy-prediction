@@ -1,7 +1,11 @@
 // app/Components/GoogleButton.tsx
 "use client";
 
-declare global { interface Window { google?: any } }
+declare global {
+  interface Window {
+    google?: unknown;
+  }
+}
 
 export default function GoogleButton() {
 
