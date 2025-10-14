@@ -1,0 +1,16 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/venv/Scripts/python.exe",
+  "python.analysis.typeCheckingMode": "basic",
+  "python.testing.pytestEnabled": false,
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  },
+  "eslint.workingDirectories": [{ "mode": "auto" }],
+  "tailwindCSS.includeLanguages": { "typescriptreact": "html", "javascriptreact": "html" },
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+  "terminal.integrated.env.windows": {
+    "DJANGO_DEBUG": "1"
+  }
+}
