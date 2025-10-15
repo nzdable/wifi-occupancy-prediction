@@ -10,3 +10,4 @@ whitenoise==6.11.0
 psycopg==3.2.10
 psycopg-binary==3.2.10
 psycopg-pool==3.2.6
+requests==2.32.5
