@@ -1,1 +1,15 @@
--r requirements-prod.txt
+Django==5.2.7
+djangorestframework==3.16.1
+django-cors-headers==4.9.0
+django-allauth==65.12.0
+djangorestframework_simplejwt==5.5.1
+
+gunicorn==23.0.0
+whitenoise==6.11.0
+dj-database-url==3.0.1
+
+# One line is enough for psycopg:
+psycopg[binary,pool]==3.2.10
+
+requests==2.32.5
+cryptography==46.0.2
