@@ -34,7 +34,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "wifi-occupancy-prediction-production.up.railway.app").split(",")
 
 
 # Application definition
@@ -157,7 +157,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://wifi-occupancy-prediction-five.vercel.app/",
+    "https://wifi-occupancy-prediction-five.vercel.app",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
@@ -188,7 +188,7 @@ ACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGOUT_ON_GET = True
 
-FRONTEND_URL = os.getenv("FRONTEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wifi-occupancy-prediction-five.vercel.app").rstrip("/")
 LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/Student"
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/"
 
