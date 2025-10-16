@@ -3,10 +3,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import LogoutButton from "../Components/LogoutButton";
 import LibraryCard from "../Components/LibraryCard";
+import { API_BASE } from "../lib/config";
 
 export default async function StudentPage() {
-  // 👇 await it
-  const store = await cookies();
+  const store = cookies();
 
   // Option A: Next exposes a header string
   const cookieHeader = store.toString();
@@ -14,7 +14,7 @@ export default async function StudentPage() {
   // Option B: build manually (works everywhere)
   // const cookieHeader = store.getAll().map(c => `${c.name}=${c.value}`).join("; ");
 
-  const res = await fetch("http://localhost:8000/whoami/", {
+  const res = await fetch(`${API_BASE}/whoami/`, {
     headers: { Cookie: cookieHeader },
     cache: "no-store",
   });
