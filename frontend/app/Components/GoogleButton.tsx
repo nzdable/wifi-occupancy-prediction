@@ -7,11 +7,13 @@ declare global {
   }
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+
 export default function GoogleButton() {
 
   return (
     <a
-      href="http://localhost:8000/accounts/google/login/?process=login"
+      href={`${API_URL}/accounts/google/login/?process=login`}
       className="group inline-flex w-full items-center justify-center gap-3 rounded-xl bg-[#1a2b8a] px-5 py-3 text-sm font-semibold text-white shadow-lg ring-1 ring-white/10 hover:-translate-y-[1px] hover:bg-[#1b34b8]"
     >
       <GoogleMark className="h-4 w-4" />

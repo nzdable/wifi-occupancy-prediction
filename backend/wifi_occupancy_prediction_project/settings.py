@@ -157,11 +157,12 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "https://wifi-occupancy-prediction-five.vercel.app/",
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://*.up.railway.app",
+    "https://wifi-occupancy-prediction-production.up.railway.app",
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -187,7 +188,7 @@ ACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGOUT_ON_GET = True
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/Student"
 ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/"
 
