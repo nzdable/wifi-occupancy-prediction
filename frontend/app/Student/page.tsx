@@ -6,7 +6,8 @@ import LibraryCard from "../Components/LibraryCard";
 import { API_BASE } from "../lib/config";
 
 export default async function StudentPage() {
-  const store = cookies();
+  // 👇 await it
+  const store = await cookies();
 
   // Option A: Next exposes a header string
   const cookieHeader = store.toString();
