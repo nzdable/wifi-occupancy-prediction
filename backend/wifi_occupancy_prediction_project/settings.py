@@ -152,16 +152,20 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SITE_ID = 1
 
-CORS_ALLOW_CREDENTIALS = True
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wifi-occupancy-prediction-five.vercel.app").rstrip("/")
+LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/Student"
+ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/"
 
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://wifi-occupancy-prediction-five.vercel.app",
+    FRONTEND_URL,
 ]
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    FRONTEND_URL,
     "https://wifi-occupancy-prediction-production.up.railway.app",
 ]
 
@@ -187,11 +191,6 @@ ACCOUNT_EMAIL_VERIFICATION = "none"
 
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGOUT_ON_GET = True
-
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wifi-occupancy-prediction-five.vercel.app").rstrip("/")
-LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/Student"
-ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/"
-
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
