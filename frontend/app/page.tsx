@@ -1,9 +1,36 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import GoogleButton from "./Components/GoogleButton";
 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+
 export default function Home() {
+
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    const whoami = new URL("/whoami/", API_BASE).toString();
+    fetch(whoami, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : { authenticated: false }))
+      .then(d => {
+        if (d?.authenticated) {
+          if (d?.role === "admin") router.replace("/Admin");
+          else router.replace("/Student");
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => setChecking(false));
+  }, [router]);
+
+  if (checking) {
+    return <main className="grid min-h-screen place-items-center bg-[#030B3A] text-white">Checking…</main>;
+  }
+
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden">
       {/* Background */}

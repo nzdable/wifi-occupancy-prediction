@@ -24,8 +24,15 @@ def root_redirect(_):
 
 def whoami(request):
     if request.user.is_authenticated:
-        return JsonResponse({"authenticated": True, "email": request.user.email})
+        # temporary stub
+        role = "student" if request.user.email.endswith("@addu.edu.ph") else "admin"
+        return JsonResponse({
+            "authenticated": True,
+            "email": request.user.email,
+            "role": role,
+        })
     return JsonResponse({"authenticated": False})
+
 
 urlpatterns = [
     path('', root_redirect),
