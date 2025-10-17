@@ -17,9 +17,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.http import HttpResponseRedirect, JsonResponse
+from django.conf import settings
 
 def root_redirect(_):
-    return HttpResponseRedirect("http://localhost:3000/")
+    return HttpResponseRedirect(settings.FRONTEND_URL)
 
 def whoami(request):
     if request.user.is_authenticated:

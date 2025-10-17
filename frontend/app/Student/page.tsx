@@ -14,7 +14,7 @@ export default async function StudentPage() {
   const store = await cookies();
   const cookieHeader = store.toString();
 
-  const API_BASE = getApiBase;
+  const API_BASE = getApiBase();
 
   const res = await fetch(`${API_BASE}/whoami/`, {
     headers: { Cookie: cookieHeader },
