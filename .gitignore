@@ -4,6 +4,7 @@ frontend/.next/
 frontend/out/
 frontend/build/
 frontend/.env*
+!frontend/.env.local.example
 frontend/.vercel
 frontend/coverage/
 frontend/.DS_Store
