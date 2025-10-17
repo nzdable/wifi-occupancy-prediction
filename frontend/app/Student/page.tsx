@@ -3,17 +3,18 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import LogoutButton from "../Components/LogoutButton";
 import LibraryCard from "../Components/LibraryCard";
-import { API_BASE } from "../lib/config";
+import { getApiBase  } from "../lib/config";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "default-no-store";
 
 export default async function StudentPage() {
-  // 👇 await it
+  
   const store = await cookies();
-
-  // Option A: Next exposes a header string
   const cookieHeader = store.toString();
 
-  // Option B: build manually (works everywhere)
-  // const cookieHeader = store.getAll().map(c => `${c.name}=${c.value}`).join("; ");
+  const API_BASE = getApiBase;
 
   const res = await fetch(`${API_BASE}/whoami/`, {
     headers: { Cookie: cookieHeader },

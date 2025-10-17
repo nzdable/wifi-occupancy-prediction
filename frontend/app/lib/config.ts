@@ -1,5 +1,11 @@
-const apiServer = process.env.API_URL;               // set on Vercel
-const apiClient = process.env.NEXT_PUBLIC_API_URL;   // already set
+export function getApiBase(): string {
+  const server = process.env.API_URL;               
+  const client = process.env.NEXT_PUBLIC_API_URL;   
+  const val = server ?? client;
 
-export const API_BASE =
-  apiServer ?? apiClient ?? (() => { throw new Error("API base URL not set"); })();
+  if (!val) {
+    if (process.env.CI) return "http://127.0.0.1:8000";
+    throw new Error("API base URL not set");
+  }
+  return val;
+}
