@@ -1,0 +1,88 @@
+# docker-compose.yml
+version: "3.8"
+
+services:
+  # Airflow services
+  postgres:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data # Persist Airflow's metadata
+
+  airflow-init:
+    image: apache/airflow:2.7.2
+    container_name: airflow_init
+    entrypoint: /bin/bash -c "airflow db migrate && airflow users create --username admin --password admin --firstname Airflow --lastname User --role Admin --email admin@example.com"
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - ./models:/opt/airflow/models # Mount models directory for Airflow to save
+    depends_on:
+      - postgres
+    profiles: ["setup"] # Only runs when explicitly requested with `docker compose --profile setup up`
+
+  airflow-webserver:
+    image: apache/airflow:2.7.2
+    container_name: airflow_webserver
+    command: airflow webserver
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - ./models:/opt/airflow/models
+    depends_on:
+      - postgres
+      - airflow-scheduler
+    restart: always
+
+  airflow-scheduler:
+    image: apache/airflow:2.7.2
+    container_name: airflow_scheduler
+    command: airflow scheduler
+    environment:
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+      - AIRFLOW__WEBSERVER__BASE_URL=http://localhost:8080
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - ./models:/opt/airflow/models
+    depends_on:
+      - postgres
+    restart: always
+
+  # Streamlit service
+  streamlit_app:
+    build: ./streamlit_app
+    container_name: streamlit_occupancy_predictor
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models # Mount models directory for Streamlit to load
+    depends_on:
+      # Streamlit doesn't strictly depend on Airflow *running*,
+      # but it needs Airflow to have potentially trained models.
+      # This just ensures Airflow is up if you start everything together.
+      - airflow-webserver
+    restart: always

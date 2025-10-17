@@ -1,0 +1,7 @@
+# airflow/requirements.txt
+pandas
+numpy
+scikit-learn
+tensorflow
+matplotlib
+shap # For the advanced model, although it will be skipped if too slow for the DAG
