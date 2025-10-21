@@ -48,4 +48,5 @@ DATABASE_URL=postgresql://user:pass@host:5432/dbname
 
 ### 4. Run the docker environment
 Run in the terminal
+
 docker compose up --build
