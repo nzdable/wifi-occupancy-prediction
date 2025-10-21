@@ -14,7 +14,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace("/");       // no API configured
       return;
     }
-    const url = new URL("/whoami/", API_BASE).toString();
+    const url = new URL("/users/whoami/", API_BASE).toString();
     fetch(url, { credentials: "include" })
       .then(r => (r.ok ? r.json() : { authenticated: false }))
       .then(d => {

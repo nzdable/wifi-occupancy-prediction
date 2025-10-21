@@ -13,8 +13,10 @@ export default function Home() {
   const router = useRouter();
   const [checking, setChecking] = useState(true);
 
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-  const whoami = new URL("/whoami/", API_BASE).toString();
+  const whoami = new URL("/users/whoami/", API_BASE).toString();
 
   fetch(whoami, { credentials: "include" })
     .then(r => (r.ok ? r.json() : { authenticated: false }))
@@ -35,6 +37,31 @@ export default function Home() {
       setTimeout(() => setChecking(false), 4000);
     });
 }, [router]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get("error");
+      if (err && err !== "null" && err !== "undefined" && err.trim() !== "") {
+        setError(err);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+
+    if (!error || error === "null" || error === "undefined" || error.trim() === "") return;
+
+    if (error === "invalid_email") {
+      alert("Only AdDU emails are allowed!");
+    }
+    else {
+      alert(error)
+    }
+
+    router.replace("/", {scroll:false});
+    setError(null)
+  }, [error, router]);
 
   if (checking) {
     return <LoadingScreen/>;
