@@ -7,6 +7,7 @@ Ensure you have the following installed:
 - **Docker** & **Docker Compose**
 - **Node.js** (for optional local frontend development)
 - **Python 3.11+** (for optional local backend development)
+- **Postgresql 17+** (for optional local Database Connection)
 
 ---
 
