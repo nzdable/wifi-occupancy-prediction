@@ -1,9 +1,45 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import GoogleButton from "./Components/GoogleButton";
+import LoadingScreen from "./Components/LoadingScreen";
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 export default function Home() {
+
+  const router = useRouter();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+  const whoami = new URL("/whoami/", API_BASE).toString();
+
+  fetch(whoami, { credentials: "include" })
+    .then(r => (r.ok ? r.json() : { authenticated: false }))
+    .then(d => {
+      // Always show the loading screen for at least 2–4 seconds
+      const MIN_LOADING_TIME = 4000; // ms
+
+      if (d?.authenticated) {
+        setTimeout(() => {
+          if (d?.role === "admin") router.replace("/Admin");
+          else router.replace("/Student");
+        }, MIN_LOADING_TIME);
+      } else {
+        setTimeout(() => setChecking(false), MIN_LOADING_TIME);
+      }
+    })
+    .catch(() => {
+      setTimeout(() => setChecking(false), 4000);
+    });
+}, [router]);
+
+  if (checking) {
+    return <LoadingScreen/>;
+  }
+
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden">
       {/* Background */}
