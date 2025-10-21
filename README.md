@@ -13,7 +13,7 @@ Ensure you have the following installed:
 
 ### 2. Clone the repository
 vsCode
-git clone https://github.com/<your-username>/<your-repo>.git](https://github.com/nzdable/wifi-occupancy-prediction.git
+git clone https://github.com/nzdable/wifi-occupancy-prediction.git
 
 ### 3. Setting up the .env files for the respective folders
 
