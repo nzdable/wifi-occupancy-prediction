@@ -19,6 +19,7 @@ export default async function StudentPage() {
           <LibraryCard name="American Corner" occupancy={54}/>
           <LibraryCard name="Mig Pro" occupancy={28} />
         </div>
+        <LogoutButton/>
       </main>
     </AuthGate>
   );

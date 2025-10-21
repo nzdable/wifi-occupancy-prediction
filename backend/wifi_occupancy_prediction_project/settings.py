@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'allauth.account',
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
+    'users',
 ]
 
 MIDDLEWARE = [
@@ -103,14 +104,6 @@ if DATABASE_URL:
             )}
 else:
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -190,12 +183,20 @@ AUTHENTICATION_BACKENDS = [
     "allauth.account.auth_backends.AuthenticationBackend",
 ]
 
-ACCOUNT_AUTHENTICATION_METHOD = "email"
-ACCOUNT_EMAIL_REQUIRED = True
+#Allauth
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = {"email*"}
 ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+ACCOUNT_USERNAME_REQUIRED = False
 
+#Social Login behavior
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGOUT_ON_GET = True
+
+#User Settings
+AUTH_USER_MODEL = 'users.CustomUser'
+ACCOUNT_EMAIL_DOMAIN_WHITELIST = ["addu.edu.ph"]
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
@@ -235,3 +236,4 @@ else:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SAMESITE = "None"
     CSRF_COOKIE_SECURE = True
+

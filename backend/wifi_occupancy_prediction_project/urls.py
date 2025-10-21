@@ -16,28 +16,16 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.http import HttpResponseRedirect, JsonResponse
+from django.http import HttpResponseRedirect
 from django.conf import settings
 
 def root_redirect(_):
     return HttpResponseRedirect(settings.FRONTEND_URL)
-
-def whoami(request):
-    if request.user.is_authenticated:
-        # temporary stub
-        role = "student" if request.user.email.endswith("@addu.edu.ph") else "admin"
-        return JsonResponse({
-            "authenticated": True,
-            "email": request.user.email,
-            "role": role,
-        })
-    return JsonResponse({"authenticated": False})
-
 
 urlpatterns = [
     path('', root_redirect),
     path('accounts/', include("allauth.urls")),
     path('admin/', admin.site.urls),
     path('api/', include("api.urls")),
-    path('whoami/', whoami)
+    path('users/', include("users.urls")),
 ]
