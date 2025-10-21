@@ -23,14 +23,15 @@ cp backend/.env.example backend/.env
 Frontend .env
 
 NEXT_PUBLIC_GOOGLE_CLIENT_ID=Your_Google_Client_ID_Here
+
 NEXT_PUBLIC_GOOGLE_CLIENT_SECRET=Your_Google_Client_Secret_Here
+
 NEXT_PUBLIC_API_URL=http://localhost:8000
+
 API_URL=http://127.0.0.1:8000
 Backend .env
 
-Backend .env
-
-SECRET_KEY=<Run this command in the VS Code terminal and paste the result>
+SECRET_KEY=Run this command in the VS Code terminal and paste the result
 # python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
 
 DEBUG=true (false for deployment)
