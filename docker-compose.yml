@@ -41,7 +41,12 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-wifi}:${POSTGRES_PASSWORD:-wifi}@db:5432/${POSTGRES_DB:-wifi}
+      DATABASE_URL: ""
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-wifi}
+      DB_USER: ${POSTGRES_USER:-wifi}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-wifi}
       DB_SSL_REQUIRED: "false"
       REDIS_URL: redis://redis:6379/0
       FRONTEND_URL: http://localhost:3000
