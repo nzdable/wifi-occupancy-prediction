@@ -5,7 +5,7 @@
 cd backend
 python3 -m venv venv
 source venv/bin/activate  # (or venv\Scripts\activate on Windows)
-pip3 install django djangorestframework joblib scikit-learn
+pip install -r requirements-dev.txt
 django-admin startproject wifi_occupancy_prediction_project .
 ```
 
