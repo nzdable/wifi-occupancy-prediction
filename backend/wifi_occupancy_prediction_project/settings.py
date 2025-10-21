@@ -105,15 +105,21 @@ if DATABASE_URL:
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=0 if DEBUG else 600,
+            conn_max_age=0 if os.getenv("DEBUG","false").lower()=="true" else 600,
             ssl_require=DB_SSL_REQUIRED,
         )
     }
 else:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "ENGINE": "django.db.backends.postgresql",
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": int(os.getenv("DB_PORT", "5432")),
+            "NAME": os.getenv("DB_NAME", "wifi"),
+            "USER": os.getenv("DB_USER", "wifi"),
+            "PASSWORD": os.getenv("DB_PASSWORD", "wifi"),
+            "CONN_MAX_AGE": 0 if os.getenv("DEBUG","false").lower()=="true" else 600,
+            "OPTIONS": {} if not DB_SSL_REQUIRED else {"sslmode": "require"},
         }
     }
 
