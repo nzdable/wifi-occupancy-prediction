@@ -33,7 +33,7 @@ API_URL=http://127.0.0.1:8000
 Backend .env
 
 SECRET_KEY=Run this command in the VS Code terminal and paste the result
-# python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
+## python -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())'
 
 DEBUG=true (false for deployment)
 
