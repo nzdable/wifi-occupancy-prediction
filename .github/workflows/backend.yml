@@ -1,79 +1,78 @@
 name: Backend CI
 
 on:
-    push:
-        branches: [main, staging]
-    pull_request: {}
+  push:
+    branches: [main, staging]
+  pull_request: {}
 
 concurrency:
-    group: backend-${{ github.ref }}
-    cancel-in-progress: false
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-    test:
-        runs-on: ubuntu-latest
+  test:
+    runs-on: ubuntu-latest
 
-        # Start Postgres (and wait for it to be healthy)
-        services:
-            postgres:
-                image: postgres:17-alpine
-                env:
-                    POSTGRES_USER: wifi
-                    POSTGRES_PASSWORD: wifi
-                    POSTGRES_DB: wifi
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd="pg_isready -U wifi -d wifi"
-                    --health-interval=10s
-                    --health-timeout=5s
-                    --health-retries=10
-
-        # Make DB settings available to all steps (no DATABASE_URL on purpose)
+    # Start Postgres (and wait for it to be healthy)
+    services:
+      postgres:
+        image: postgres:17-alpine
         env:
-            DEBUG: "True"
-            SECRET_KEY: "test-secret"
-            ALLOWED_HOSTS: "localhost,127.0.0.1"
-            DB_HOST: "localhost" # service is bound to localhost:5432 in the job
-            DB_PORT: "5432"
-            DB_NAME: "wifi"
-            DB_USER: "wifi"
-            DB_PASSWORD: "wifi"
-            DB_SSL_REQUIRED: "false"
+          POSTGRES_USER: wifi
+          POSTGRES_PASSWORD: wifi
+          POSTGRES_DB: wifi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U wifi -d wifi"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    # Make DB settings available to all steps (no DATABASE_URL on purpose)
+    env:
+      DEBUG: "True"
+      SECRET_KEY: "test-secret"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      DB_HOST: "localhost" # service is bound to localhost:5432 in the job
+      DB_PORT: "5432"
+      DB_NAME: "wifi"
+      DB_USER: "wifi"
+      DB_PASSWORD: "wifi"
+      DB_SSL_REQUIRED: "false"
 
-            - name: Set up Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: "3.11"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            # Optional: install psql client if you want to run pg_isready yourself
-            - name: Install Postgres client (optional)
-              run: |
-                  sudo apt-get update
-                  sudo apt-get install -y postgresql-client
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-            - name: Install dependencies
-              working-directory: ./backend
-              run: |
-                  python -m pip install --upgrade pip
-                  pip install --no-cache-dir -r requirements.txt
+      - name: Install Postgres client (optional)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
-            # Optional: explicit wait (services healthcheck usually suffices)
-            - name: Wait for Postgres (optional)
-              run: |
-                  for i in {1..30}; do
-                    pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" && break
-                    sleep 1
-                  done
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
 
-            - name: Run migrations
-              working-directory: ./backend
-              run: python manage.py migrate --noinput
+      # Optional: explicit wait (services healthcheck usually suffices)
+      - name: Wait for Postgres (optional)
+        run: |
+          for i in {1..30}; do
+            pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" && break
+            sleep 1
+          done
 
-            - name: Run tests
-              working-directory: ./backend
-              run: python manage.py test --noinput
+      - name: Run migrations
+        working-directory: ./backend
+        run: python manage.py migrate --noinput
+
+      - name: Run tests
+        working-directory: ./backend
+        run: python manage.py test --noinput
