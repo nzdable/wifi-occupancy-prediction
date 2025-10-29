@@ -7,6 +7,8 @@ router = DefaultRouter()
 router.register(r"libraries", views.LibraryViewSet, basename="library")
 router.register(r"signals", views.SignalViewSet, basename="views")
 router.register(r"forecasts", views.ForecastViewSet, basename = "forecasts")
+router.register(r"candidates", views.ModelCandidateViewSet, basename="candidate")
+router.register(r"active", views.ActiveModelViewSet, basename="active-model")
 
 urlpatterns = [
     path("", include(router.urls)),

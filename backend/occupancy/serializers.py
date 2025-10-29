@@ -25,3 +25,18 @@ class ForecastSerializer (serializers.ModelSerializer):
         model = models.Forecast
         fields = '__all__'
         read_only_fields = ['created_at']
+
+class ModelCandidateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ModelCandidate
+        fields = ["id","library","family","version","created_at"]
+
+class ModelEvaluationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ModelEvaluation
+        fields = ["id","candidate","evaluated_at","r2","mse","rmse","notes"]
+
+class ActiveModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ActiveModel
+        fields = ["library","candidate","selected_at","selected_by","criterion"]
