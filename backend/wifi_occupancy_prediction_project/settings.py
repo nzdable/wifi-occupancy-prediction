@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import timedelta
 import os
 import dj_database_url
+from rest_framework.permissions import AllowAny
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -39,6 +40,7 @@ ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "wifi-occupancy-prediction-production
 
 # Application definition
 
+#Connects created apps to the backend
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -47,6 +49,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
+    'django_filters',
 
 
     'rest_framework',
@@ -56,6 +59,8 @@ INSTALLED_APPS = [
     'allauth.socialaccount',
     'allauth.socialaccount.providers.google',
     'users',
+    'api',
+    'occupancy',
 ]
 
 MIDDLEWARE = [
@@ -147,7 +152,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Manila'
 
 USE_I18N = True
 
@@ -191,9 +196,14 @@ CORS_ALLOW_HEADERS = [
 ]
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
+    "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-    ),
+    ],
+
+    "DEFAULT_PERMISSION_CLASSES":[
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+        # "rest_framework.permissions.AllowAny",
+    ]
 }
 
 AUTHENTICATION_BACKENDS = [

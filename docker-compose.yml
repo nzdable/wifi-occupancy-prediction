@@ -52,6 +52,7 @@ services:
       FRONTEND_URL: http://localhost:3000
       ALLOWED_HOSTS: localhost,127.0.0.1,backend
       DEBUG: "true"
+      MODEL_DIR: /app/artifacts
     depends_on:
       db:
         condition: service_healthy
@@ -59,6 +60,7 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app
+      - ./backend/artifacts:/app/artifacts:ro
     command: >
       bash -lc "
       python manage.py migrate --noinput &&

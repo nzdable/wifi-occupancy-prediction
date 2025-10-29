@@ -22,10 +22,12 @@ from django.conf import settings
 def root_redirect(_):
     return HttpResponseRedirect(settings.FRONTEND_URL)
 
+# Allows the use of API calls
 urlpatterns = [
     path('', root_redirect),
     path('accounts/', include("allauth.urls")),
     path('admin/', admin.site.urls),
     path('api/', include("api.urls")),
     path('users/', include("users.urls")),
+    path('occupancy/', include("occupancy.urls"),)
 ]

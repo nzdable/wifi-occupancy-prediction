@@ -1,4 +1,3 @@
-// app/Student/page.tsx
 import LogoutButton from "../Components/LogoutButton";
 import LibraryCard from "../Components/LibraryCard";
 import AuthGate from "../Components/AuthGate";
