@@ -26,7 +26,7 @@ export default function Home() {
 
       if (d?.authenticated) {
         setTimeout(() => {
-          if (d?.role === "admin") router.replace("/Admin");
+          if (d?.role === "admin") router.replace("/admin");
           else router.replace("/Student");
         }, MIN_LOADING_TIME);
       } else {

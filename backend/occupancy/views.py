@@ -3,10 +3,14 @@ from rest_framework import viewsets, filters, mixins, status
 from rest_framework.permissions import AllowAny
 from . import models
 from . import serializers
+from . import services
 from .permissions import IsAdminOrReadOnly
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.decorators import action
+import os
+
+DEFAULT_FAMILY = os.getenv("MODEL_DEFAULT_FAMILY", "cnn-lstm-attn")
 
 
 class LibraryViewSet(viewsets.ModelViewSet):
@@ -31,6 +35,7 @@ class SignalViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["library__key", "library"]
 
+    @action(detail=False, methods=["delete"], url_path="bulk_delete")
     def bulk_delete(self, request):
         """
         Delete all signals, or optionally all signals for a given library.
@@ -67,6 +72,12 @@ class ForecastViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["library__key", "model_version", "model_family", "horizon_min"]
 
+    def generate_prediction(self, request):
+        lib_key = request.GET.get("library", "").strip()
+        family = request.GET.get("family", DEFAULT_FAMILY).strip()
+        services.predict_latest_from_db(lib_key, family)
+
+
 class ModelCandidateViewSet(viewsets.ModelViewSet):
     queryset = models.ModelCandidate.objects.select_related("library").all()
     serializer_class = serializers.ModelCandidateSerializer
@@ -78,8 +89,8 @@ class ModelCandidateViewSet(viewsets.ModelViewSet):
         cand = self.get_object()
         if request.method.lower() == "get":
             qs = cand.evaluations.order_by("-evaluated_at")
-            return Response(ModelEvaluationSerializer(qs, many=True).data)
-        ser = ModelEvaluationSerializer(data=request.data)
+            return Response(serializers.ModelEvaluationSerializer(qs, many=True).data)
+        ser = serializers.ModelEvaluationSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         ser.save(candidate=cand)
         return Response(ser.data, status=status.HTTP_201_CREATED)
