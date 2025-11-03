@@ -3,6 +3,7 @@
 import AdminShell from "../../Components/AdminShell";
 import { Card } from "../../Components/Card";
 import UploadCsvPanel from "../../Components/UploadCsvPanel";
+import ActiveModelCard from "@/app/Components/ActiveModelCard";
 
 export default function AdminInsightsPage() {
   return (
@@ -10,6 +11,10 @@ export default function AdminInsightsPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card title="Upload CSV">
           <UploadCsvPanel />
+        </Card>
+
+        <Card title="Student View Model (Default)">
+          <ActiveModelCard />
         </Card>
 
         <Card title="Insights">

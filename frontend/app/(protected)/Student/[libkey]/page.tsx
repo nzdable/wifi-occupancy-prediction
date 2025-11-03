@@ -17,19 +17,20 @@ export const revalidate = 0;
 export default async function LibraryDetailPage({ params, searchParams }: PageProps) {
   const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
   const libKey = safeToken(params.libkey);
-  const family = safeToken(pickOne(searchParams?.family)) || "cnn";
+  const family = safeToken(pickOne(searchParams?.family)) || "";
   const date   = pickOne(searchParams?.date) ?? new Date().toISOString().slice(0,10);
 
   const u = new URL(`${base}/occupancy/forecast/day`);
   u.searchParams.set("library", libKey);
   u.searchParams.set("date", date);
-  u.searchParams.set("family", family);
+  if (family) u.searchParams.set("family", family);
 
   const res = await fetch(u.toString(), { cache: "no-store" });
   const js  = res.ok ? await res.json().catch(() => null) : null;
   const points: Point[] = Array.isArray(js?.points) ? js.points : [];
 
   const labels    = points.map(p => new Date(p.time_local).toLocaleTimeString([], { hour: "2-digit" }));
+  const hours24   = points.map(p => new Date(p.time_local).getHours());
   const predicted = points.map(p => p.predicted ?? 0);
 
   const peak = Math.max(0, ...predicted);
@@ -51,7 +52,7 @@ export default async function LibraryDetailPage({ params, searchParams }: PagePr
                     sub={new Date().toLocaleString([], { hour: "numeric" })} />
       </div>
 
-      <GraphSection libKey={libKey} date={date} family={family} labels={labels} predicted={predicted} />
+      <GraphSection libKey={libKey} date={date} family={family} labels={labels} predicted={predicted} hours24={hours24}/>
     </div>
   );
 }

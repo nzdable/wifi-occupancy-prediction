@@ -12,10 +12,10 @@ function fmt(d: Date) {
 }
 
 export default function GraphSection({
-  libKey, date, family, labels, predicted
+  libKey, date, family, labels, predicted, hours24
 }: {
   libKey: string; date: string; family: string;
-  labels: string[]; predicted: number[];
+  labels: string[]; predicted: number[]; hours24: number[]
 }) {
   const router = useRouter();
   const sp = useSearchParams();
@@ -35,7 +35,8 @@ export default function GraphSection({
   const go = (newDate: string) => {
     const params = new URLSearchParams(sp?.toString() || "");
     params.set("date", newDate);
-    params.set("family", family);
+    if (family) params.set("family", family);
+    else params.delete("family");
     setPending(true); // show overlay until the URL updates and server sends new props
     router.replace(`/Student/${libKey}?${params.toString()}`, { scroll: false });
 
@@ -82,7 +83,7 @@ export default function GraphSection({
       </div>
 
       <div className="space-y-4">
-        <BestTimesCard labels={labels} predicted={predicted} />
+        <BestTimesCard labels={labels} predicted={predicted} hours24={hours24} />
       </div>
     </div>
   );

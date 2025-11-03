@@ -7,7 +7,7 @@ import AdminUsersTable from "@/app/Components/AdminUsersTable";
 export default function AdminUsersPage() {
   return (
     <AdminShell>
-      <Card title="User Management">
+      <Card>
         <AdminUsersTable />
       </Card>
     </AdminShell>

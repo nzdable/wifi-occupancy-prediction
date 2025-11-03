@@ -27,9 +27,10 @@ class ForecastSerializer (serializers.ModelSerializer):
         read_only_fields = ['created_at']
 
 class ModelCandidateSerializer(serializers.ModelSerializer):
+    library_key = serializers.CharField(source="library.key", read_only=True)
     class Meta:
         model = models.ModelCandidate
-        fields = ["id","library","family","version","created_at"]
+        fields = ["id", "library_key", "family", "version", "created_at"]
 
 class ModelEvaluationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -37,6 +38,10 @@ class ModelEvaluationSerializer(serializers.ModelSerializer):
         fields = ["id","candidate","evaluated_at","r2","mse","rmse","notes"]
 
 class ActiveModelSerializer(serializers.ModelSerializer):
+    library_key = serializers.CharField(source="library.key", read_only=True)
+    family = serializers.CharField(source="candidate.family", read_only=True)
+    version = serializers.CharField(source="candidate.version", read_only=True)
     class Meta:
         model = models.ActiveModel
-        fields = ["library","candidate","selected_at","selected_by","criterion"]
+        fields = ["library_key", "family", "version", "selected_at", "selected_by", "criterion"]
+

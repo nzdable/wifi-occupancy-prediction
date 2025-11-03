@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from . import views_uploads
 from . import views_forecast
+from . import views_models
 
 router = DefaultRouter()
 router.register(r"libraries", views.LibraryViewSet, basename="library")
@@ -17,4 +18,7 @@ urlpatterns = [
     path("forecast/at", views_forecast.ForecastAtView.as_view()),
     path("forecast/day", views_forecast.ForecastDayView.as_view()),
     path("history/day", views_forecast.HistoryDayView.as_view()),
+    path("models/active/", views_models.ActivePerLibraryView.as_view()),
+    path("models/sync/", views_models.SyncCandidatesView.as_view()),
+    path("models/candidates/", views_models.ModelCandidatesView.as_view()),
 ]

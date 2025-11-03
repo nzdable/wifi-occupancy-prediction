@@ -1,4 +1,3 @@
-# occupancy/views_forecast.py
 from __future__ import annotations
 
 from functools import lru_cache
@@ -12,76 +11,43 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .infer import (
-    get_series_df,
-    load_artifacts_cached,
-    one_step,
-    walk_forward,
-    _feature_row_for_ts,
-    walk_forward_hybrid,
-)
+from .infer import get_series_df, load_artifacts_cached, walk_forward, ensure_dt_index_tz
 from .models import Library, Signal
-from .utils.validate import clean_choice
+from .utils.active import get_active_family_version
 
-# ------------------------------------------------------------------
-# Constants
-# ------------------------------------------------------------------
-
+# If your clean_choice requires defaults, we’ll validate manually instead.
 FAMILIES = {"cnn", "lstm", "cnn_lstm", "cnn_lstm_attn"}
 PH_TZ = "Asia/Manila"
 
-# ------------------------------------------------------------------
-# Helpers: parsing
-# ------------------------------------------------------------------
-
+# -------------------- parsing --------------------
 def parse_local_dt(s: str) -> pd.Timestamp:
-    """
-    Parse 'YYYY-MM-DDTHH:mm' in Asia/Manila into tz-aware Timestamp.
-    """
     ts = pd.to_datetime(s, errors="coerce")
     if pd.isna(ts):
         raise ValueError("Invalid datetime format.")
-    if ts.tz is None:
-        ts = ts.tz_localize(PH_TZ)
-    else:
-        ts = ts.tz_convert(PH_TZ)
+    ts = ts.tz_localize(PH_TZ) if ts.tz is None else ts.tz_convert(PH_TZ)
     return ts
 
-
 def parse_local_date(s: str) -> pd.Timestamp:
-    """
-    Parse 'YYYY-MM-DD' (date-only) in Asia/Manila; returns midnight Timestamp.
-    """
     ts = pd.to_datetime(s, errors="coerce")
     if pd.isna(ts):
         raise ValueError("Invalid date.")
     ts = ts.normalize()
-    if ts.tz is None:
-        ts = ts.tz_localize(PH_TZ)
-    else:
-        ts = ts.tz_convert(PH_TZ)
+    ts = ts.tz_localize(PH_TZ) if ts.tz is None else ts.tz_convert(PH_TZ)
     return ts
 
-# ------------------------------------------------------------------
-# Lightweight historical profile fallback
-# ------------------------------------------------------------------
-
+# -------------------- profile fallback --------------------
 def build_profile(library: Library, weeks: int = 8) -> Optional[pd.Series]:
-    """
-    Build a (dow, hour) → mean wifi count profile from recent signals.
-    Returns a pandas Series indexed by MultiIndex(dow, hour) or None if no data.
-    """
     qs = Signal.objects.filter(library=library).values_list("ts", "wifi_clients")
     df = pd.DataFrame(qs, columns=["ts", "wifi"])
     if df.empty:
         return None
 
-    # Convert to local PH tz; create a proper frame we can filter.
     ts_local = pd.to_datetime(df["ts"], utc=True, errors="coerce").tz_convert(PH_TZ)
-    frame = pd.DataFrame({"ts_local": ts_local, "wifi": df["wifi"].astype(int)})
-    frame = frame.dropna(subset=["ts_local"])
+    frame = (
+        pd.DataFrame({"ts_local": ts_local, "wifi": df["wifi"].astype(int)})
+        .dropna(subset=["ts_local"])
+    )
 
-    # Keep only last N weeks.
     cutoff = pd.Timestamp.now(tz=PH_TZ) - pd.Timedelta(weeks=weeks)
     frame = frame.loc[frame["ts_local"] >= cutoff]
     if frame.empty:
@@ -89,74 +55,92 @@ def build_profile(library: Library, weeks: int = 8) -> Optional[pd.Series]:
 
     frame["dow"] = frame["ts_local"].dt.dayofweek.astype(int)
     frame["hour"] = frame["ts_local"].dt.hour.astype(int)
-
-    prof = (
-        frame.groupby(["dow", "hour"])["wifi"]
-        .mean()
-        .round()
-        .astype(int)
-    )
-    return prof  # index: MultiIndex(dow, hour)
-
+    prof = frame.groupby(["dow", "hour"])["wifi"].mean().round().astype(int)
+    return prof
 
 @lru_cache(maxsize=64)
 def _load_profile_cached(lib_pk: int) -> Optional[pd.Series]:
     lib = Library.objects.get(pk=lib_pk)
     return build_profile(lib)
 
-
 def load_profile(library: Library) -> Optional[pd.Series]:
-    """
-    Cached getter for a library's profile.
-    """
     return _load_profile_cached(int(library.pk))
 
-
 def profile_lookup(profile: Optional[pd.Series], target_utc: pd.Timestamp | str) -> int:
-    """
-    Return the profile mean for the given UTC timestamp.
-    """
     if profile is None or profile.empty:
         return 0
-
     ts = pd.to_datetime(target_utc, utc=True, errors="coerce")
     if pd.isna(ts):
         return 0
     if ts.tz is None:
         ts = ts.tz_localize("UTC")
-
     t_local = ts.tz_convert(PH_TZ)
     key = (int(t_local.dayofweek), int(t_local.hour))
     try:
-        # Series with MultiIndex can be accessed via .loc[(dow, hour)]
         return int(profile.loc[key])
     except Exception:
         return 0
 
-# ------------------------------------------------------------------
-# Views
-# ------------------------------------------------------------------
+# -------------------- internal wrapper --------------------
+def _forecast_steps(
+    model,
+    scaler,
+    window: int,
+    base_vals: np.ndarray,
+    steps: int,
+    base_index: Optional[pd.DatetimeIndex],
+    meta: dict,
+) -> np.ndarray:
+    """
+    Always call walk_forward; it auto-switches to hybrid if meta carries
+    'feature_order' + 'ohe' and base_index is provided.
+    """
+    idx: Optional[pd.DatetimeIndex] = None
+    if base_index is not None:
+        # Silence type-checkers and guarantee tz-aware UTC
+        idx = pd.DatetimeIndex(base_index)
+        if idx.tz is None:
+            idx = idx.tz_localize("UTC")
+        else:
+            idx = idx.tz_convert("UTC")
 
+    
+
+    return walk_forward(
+        model=model,
+        scaler=scaler,
+        window=int(window),
+        base_series=np.asarray(base_vals, dtype=float),
+        steps=int(steps),
+        base_index=idx,
+        meta=meta,
+    )
+
+# -------------------- views --------------------
 class ForecastAtView(APIView):
-    """
-    One prediction for an exact future/local time.
-    Supports graceful fallback to (dow, hour) profile when history is stale.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
         try:
-            lib_key = clean_choice(request.query_params.get("library"), default="")
-            family  = clean_choice(request.query_params.get("family"), default="cnn", choices=FAMILIES)
-            version = clean_choice(request.query_params.get("version"), default="v1")
-            when_s  = request.query_params.get("when")
-        except ValueError as e:
+            lib_key = (request.query_params.get("library") or "").strip()
+            family_q = (request.query_params.get("family") or "").strip() or None
+            version_q = (request.query_params.get("version") or "").strip() or None
+            when_s = request.query_params.get("when")
+        except Exception as e:
             return Response({"detail": str(e)}, status=400)
 
         if not lib_key or not when_s:
             return Response({"detail": "Missing 'library' or 'when'."}, status=400)
 
         lib = get_object_or_404(Library, key=lib_key)
+
+        # Resolve active/default family+version AFTER lib is known
+        fam_default, ver_default = get_active_family_version(lib)
+        family = family_q or fam_default
+        version = version_q or ver_default
+        if family not in FAMILIES:
+            return Response({"detail": f"Unknown model family: {family}"}, status=400)
+
         try:
             when_local = parse_local_dt(when_s)
         except ValueError as e:
@@ -164,24 +148,20 @@ class ForecastAtView(APIView):
 
         when_utc = when_local.tz_convert("UTC")
 
-        # Load model artifacts once (cached)
         model, scaler, window, meta = load_artifacts_cached(family, lib.key, version)
 
         # Pull only what's needed (window + small cushion)
         need = int(window) + 6
         history = get_series_df(lib, hours=need)
+        history = ensure_dt_index_tz(history, tz="UTC")
 
-        if history.empty or len(history) < window:
-            # No seed for the ML model → pure profile fallback.
+        if history.empty or len(history) < int(window):
             prof = load_profile(lib)
             yhat = profile_lookup(prof, when_utc)
             return Response({
-                "ok": True,
-                "stale": True,
-                "mode": "profile",
+                "ok": True, "stale": True, "mode": "profile",
                 "prediction": int(max(0, yhat)),
-                "library": lib.key,
-                "model_family": family,
+                "library": lib.key, "model_family": family,
                 "model_version": meta.get("model_version"),
                 "data_ts_latest": None,
                 "requested_utc": when_utc.isoformat(),
@@ -191,17 +171,15 @@ class ForecastAtView(APIView):
         last_known = history.index[-1]
         gap_h = int(np.ceil((when_utc - last_known).total_seconds() / 3600.0))
 
+        base_vals = history.values.astype(float)
+        base_index = pd.DatetimeIndex(history.index)  # satisfy type checkers
+
         if gap_h <= 2:
-            # Live ML (fast)
-            base = history.values.astype(float)
-            yhat = float(walk_forward(model, scaler, window, base, steps=max(1, gap_h))[-1])
+            yhat = float(_forecast_steps(model, scaler, window, base_vals, max(1, gap_h), base_index, meta)[-1])
             return Response({
-                "ok": True,
-                "stale": False,
-                "mode": "live",
+                "ok": True, "stale": False, "mode": "live",
                 "prediction": int(round(max(0, yhat))),
-                "library": lib.key,
-                "model_family": family,
+                "library": lib.key, "model_family": family,
                 "model_version": meta.get("model_version"),
                 "data_ts_latest": last_known.isoformat(),
                 "requested_utc": when_utc.isoformat(),
@@ -209,40 +187,42 @@ class ForecastAtView(APIView):
             }, status=200)
 
         if gap_h <= 24:
-            # Short gap: backfill missing hours with profile, then run ML.
             prof = load_profile(lib)
-            s = history.asfreq("H")
-
-            fill_idx = pd.date_range(start=last_known + pd.Timedelta(hours=1),
-                                     end=when_utc, freq="H", tz="UTC")
+            s = history.asfreq("h")  # UTC index; 'h' avoids FutureWarning
+            fill_idx = pd.date_range(
+                start=last_known + pd.Timedelta(hours=1),
+                end=when_utc,
+                freq="h",
+                tz="UTC",
+            )
             fill_vals = [profile_lookup(prof, t) for t in fill_idx]
-            s = pd.concat([s, pd.Series(fill_vals, index=fill_idx)], axis=0).astype(float)
+            s_filled = pd.concat([s, pd.Series(fill_vals, index=fill_idx)], axis=0).astype(float)
+            s_filled = ensure_dt_index_tz(s_filled, tz="UTC")
 
-            base = s.values.astype(float)
-            yhat = float(walk_forward(model, scaler, window, base, steps=max(1, gap_h))[-1])
+            yhat = float(_forecast_steps(
+                model, scaler, window,
+                base_vals=s_filled.values.astype(float),
+                steps=max(1, gap_h),
+                base_index=pd.DatetimeIndex(s_filled.index),
+                meta=meta
+            )[-1])
+
             return Response({
-                "ok": True,
-                "stale": True,
-                "mode": "seeded",
+                "ok": True, "stale": True, "mode": "seeded",
                 "prediction": int(round(max(0, yhat))),
-                "library": lib.key,
-                "model_family": family,
+                "library": lib.key, "model_family": family,
                 "model_version": meta.get("model_version"),
                 "data_ts_latest": last_known.isoformat(),
                 "requested_utc": when_utc.isoformat(),
                 "generated_at": timezone.now().isoformat(),
             }, status=200)
 
-        # Long gap → pure profile
         prof = load_profile(lib)
         yhat = profile_lookup(prof, when_utc)
         return Response({
-            "ok": True,
-            "stale": True,
-            "mode": "profile",
+            "ok": True, "stale": True, "mode": "profile",
             "prediction": int(max(0, yhat)),
-            "library": lib.key,
-            "model_family": family,
+            "library": lib.key, "model_family": family,
             "model_version": meta.get("model_version"),
             "data_ts_latest": last_known.isoformat(),
             "requested_utc": when_utc.isoformat(),
@@ -255,58 +235,70 @@ class ForecastDayView(APIView):
 
     def get(self, request):
         try:
-            lib_key = clean_choice(request.query_params.get("library"), default="")
-            family  = clean_choice(request.query_params.get("family"), default="cnn", choices=FAMILIES)
-            version = clean_choice(request.query_params.get("version"), default="v1")
-            date_s  = request.query_params.get("date")
-        except ValueError as e:
+            lib_key = (request.query_params.get("library") or "").strip()
+            family_q = (request.query_params.get("family") or "").strip() or None
+            version_q = (request.query_params.get("version") or "").strip() or None
+            date_s = request.query_params.get("date")
+        except Exception as e:
             return Response({"detail": str(e)}, status=400)
 
         if not lib_key or not date_s:
             return Response({"detail": "Missing 'library' or 'date'."}, status=400)
 
         lib = get_object_or_404(Library, key=lib_key)
+
+        # Resolve active/default family+version AFTER lib is known
+        fam_default, ver_default = get_active_family_version(lib)
+        family = family_q or fam_default
+        version = version_q or ver_default
+        if family not in FAMILIES:
+            return Response({"detail": f"Unknown model family: {family}"}, status=400)
+
         try:
-            day_local = parse_local_date(date_s)          # Asia/Manila midnight
+            day_local = parse_local_date(date_s)
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
 
-        # Build target hours for the requested day
-        hours_local = pd.date_range(day_local, day_local + pd.Timedelta(hours=23),
-                                    freq="H", tz=PH_TZ)
-        hours_utc   = hours_local.tz_convert("UTC")
-        start_utc   = hours_utc[0]
+        # Build target hours for requested local date
+        hours_local = pd.date_range(day_local, day_local + pd.Timedelta(hours=23), freq="h", tz=PH_TZ)
+        hours_utc = hours_local.tz_convert("UTC")
+        start_utc = hours_utc[0]
 
         model, scaler, window, meta = load_artifacts_cached(family, lib.key, version)
-        
 
-        # ---- Seed history that ENDS at the requested midnight (for past days) ----
-        # If the requested day is in the future, this will just end at 'now'.
-        # We request at least 'window' hours; add a small cushion.
-        need_seed_hours = max(window, 24)
+        # Seed history that ENDS at requested midnight (or now if future)
+        need_seed_hours = max(int(window), 24)
         history = get_series_df(lib, hours=need_seed_hours, end_utc=start_utc)
-
-        if len(history) < window:
+        history = ensure_dt_index_tz(history, tz="UTC")
+        if len(history) < int(window):
             return Response({"detail": "Not enough history to predict."}, status=422)
 
-        last_known = history.index[-1]          # should be <= start_utc
-        base = history.values.astype(float)
+        last_known = history.index[-1]
+        base_vals = history.values.astype(float)
+        base_index = pd.DatetimeIndex(history.index)  # ensure DatetimeIndex type
 
-        # If the requested day starts AFTER our last data point (future gap),
-        # roll forward to reach the requested midnight, then forecast the day.
+        # If requested day starts after last data point, roll forward to midnight
         gap_h = int(np.ceil((start_utc - last_known).total_seconds() / 3600.0))
         if gap_h > 0:
             MAX_GAP = 24 * 90
             gap_h = min(gap_h, MAX_GAP)
-            gap_preds = walk_forward(model, scaler, window, base, steps=gap_h)
-            seed = np.concatenate([base, gap_preds]).astype(float)
-        else:
-            # For past days, history already ends at start_utc (or same hour)
-            seed = base
+            gap_preds = _forecast_steps(model, scaler, window, base_vals, gap_h, base_index, meta)
 
-        # Now forecast 24 steps for the requested day
-        day_preds = walk_forward(model, scaler, window, seed, steps=24)
-        out_vals  = day_preds[-24:]
+            seed_vals = np.concatenate([base_vals, gap_preds]).astype(float)
+            gap_index = pd.date_range(
+                start=last_known + pd.Timedelta(hours=1),
+                end=start_utc,
+                freq="h",
+                tz="UTC",
+            )
+            seed_index = pd.DatetimeIndex(base_index.append(gap_index))
+        else:
+            seed_vals = base_vals
+            seed_index = base_index
+
+        # Forecast the 24 hours for the requested day
+        day_preds = _forecast_steps(model, scaler, window, seed_vals, 24, seed_index, meta)
+        out_vals = day_preds[-24:]
 
         preds = [int(round(max(0.0, x))) for x in out_vals]
         lower = [max(0, int(round(x * 0.85))) for x in out_vals]
@@ -333,17 +325,13 @@ class ForecastDayView(APIView):
         }, status=200)
 
 
-
 class HistoryDayView(APIView):
-    """
-    Actual hourly occupancy (Signals) for a chosen date—useful to overlay.
-    """
     permission_classes = [AllowAny]
 
     def get(self, request):
         try:
             lib_key = request.query_params.get("library")
-            date_s  = request.query_params.get("date")
+            date_s = request.query_params.get("date")
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
 
@@ -358,7 +346,7 @@ class HistoryDayView(APIView):
         day_local = day_local.normalize().tz_localize(PH_TZ)
 
         start_utc = day_local.tz_convert("UTC")
-        end_utc   = (day_local + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)).tz_convert("UTC")
+        end_utc = (day_local + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)).tz_convert("UTC")
 
         qs = (
             Signal.objects
@@ -369,7 +357,7 @@ class HistoryDayView(APIView):
         df = pd.DataFrame(qs, columns=["ts", "wifi"])
 
         if df.empty:
-            series = []
+            series: list[dict] = []
         else:
             df["ts"] = pd.to_datetime(df["ts"], utc=True, errors="coerce")
             df = df.dropna(subset=["ts"]).set_index("ts").sort_index()
@@ -382,8 +370,8 @@ class HistoryDayView(APIView):
                 ts_utc = cast(pd.Timestamp, ts_utc)
                 series.append({
                     "time_local": ts_utc.tz_convert(PH_TZ).isoformat(),
-                    "time_utc":   ts_utc.isoformat(),
-                    "actual":     int(v),
+                    "time_utc": ts_utc.isoformat(),
+                    "actual": int(v),
                 })
 
         return Response({

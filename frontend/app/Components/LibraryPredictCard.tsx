@@ -1,3 +1,4 @@
+// app/Components/LibraryPredictCard.tsx
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -7,7 +8,7 @@ type Props = {
   libKey: string;
   title: string;
   capacity: number;
-  family?: "cnn" | "lstm" | "cnn_lstm" | "cnn_lstm_attn";
+  family?: string; // ← optional override
 };
 
 type AtResponse = {
@@ -35,7 +36,7 @@ function fmtPHNowYmdHM() {
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
-export default function LibraryPredictCard({ libKey, title, capacity, family = "cnn" }: Props) {
+export default function LibraryPredictCard({ libKey, title, capacity, family }: Props) {
   const [count, setCount] = useState<number | null>(null);
   const [when, setWhen] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -66,13 +67,13 @@ export default function LibraryPredictCard({ libKey, title, capacity, family = "
     const whenPH = fmtPHNowYmdHM();
     const u = new URL(`${API_BASE}/occupancy/forecast/at`);
     u.searchParams.set("library", libKey);
-    u.searchParams.set("family", family);
     u.searchParams.set("when", whenPH);
+    if (family) u.searchParams.set("family", family); // only if provided
 
     try {
       const res = await fetch(u.toString(), {
         signal: ac.signal,
-        cache: "no-store",           // <<< no caching
+        cache: "no-store",
         credentials: "omit",
       });
       const js: AtResponse | null = res.ok ? await res.json().catch(() => null) : null;
@@ -85,9 +86,7 @@ export default function LibraryPredictCard({ libKey, title, capacity, family = "
       setWhen(js.generated_at || whenPH);
     } catch (e: any) {
       const msg = String(e?.message || "");
-      if (e?.name === "AbortError" || msg.includes("aborted")) {
-        return; // don't mark as error
-      }
+      if (e?.name === "AbortError" || msg.includes("aborted")) return;
       setErr(msg || "Request failed");
     } finally {
       setLoading(false);
@@ -95,20 +94,14 @@ export default function LibraryPredictCard({ libKey, title, capacity, family = "
   }
 
   useEffect(() => {
-    // initial
     fetchNow();
-
-    // clear any old interval (React StrictMode safety)
     if (timerRef.current) clearInterval(timerRef.current);
-
-    // poll every minute
     timerRef.current = setInterval(fetchNow, 60_000);
-
     return () => {
       timerRef.current && clearInterval(timerRef.current);
       inflight.current?.abort();
     };
-  }, [libKey, family]);
+  }, [libKey, family]); // keep the same behaviour
 
   const r = 54;
   const C = 2 * Math.PI * r;
@@ -118,8 +111,16 @@ export default function LibraryPredictCard({ libKey, title, capacity, family = "
     return `${filled} ${C - filled}`;
   }, [percent, C]);
 
+  // Build the link; only add ?family= if overriding
+  const href = family ? `/Student/${libKey}?family=${encodeURIComponent(family)}` : `/Student/${libKey}`;
+
   return (
-    <Link href={`/Student/${libKey}`} prefetch={false} aria-label={`Open insights for ${title}`} className="group block rounded-2xl">
+    <Link
+      href={href}
+      prefetch={false}
+      aria-label={`Open insights for ${title}`}
+      className="group block rounded-2xl"
+    >
       <div
         className="
           group relative flex flex-col items-center justify-between
@@ -129,7 +130,9 @@ export default function LibraryPredictCard({ libKey, title, capacity, family = "
           transition-all duration-200 p-6 w-full max-w-sm
         "
       >
-        <h2 className="text-addu-mist font-open-sans text-lg font-semibold text-center mb-4">{title}</h2>
+        <h2 className="text-addu-mist font-open-sans text-lg font-semibold text-center mb-4">
+          {title}
+        </h2>
 
         <div className="relative w-40 h-40 mb-3">
           <svg viewBox="0 0 140 140" className="w-40 h-40 -rotate-90">
@@ -166,8 +169,12 @@ export default function LibraryPredictCard({ libKey, title, capacity, family = "
         </p>
 
         <div className="flex items-center gap-2 mt-1 h-[18px]">
-          {loading && <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-addu-royal animate-spin" />}
-          {when && !loading && <p className="text-[11px] text-addu-mist/60">Updated {new Date(when).toLocaleString()}</p>}
+          {loading && (
+            <span className="h-4 w-4 rounded-full border-2 border-white/40 border-t-addu-royal animate-spin" />
+          )}
+          {when && !loading && (
+            <p className="text-[11px] text-addu-mist/60">Updated {new Date(when).toLocaleString()}</p>
+          )}
         </div>
 
         {err && <p className="text-xs text-red-400 mt-2">Error: {err}</p>}

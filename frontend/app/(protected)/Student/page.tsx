@@ -38,7 +38,6 @@ export default function StudentPage() {
                 libKey={lib.key}
                 title={lib.title}
                 capacity={lib.capacity}
-                family="cnn"
               />
             ))}
           </div>
