@@ -14,7 +14,7 @@ export default function AdminInsightsPage() {
         </Card>
 
         <Card title="Student View Model (Default)">
-          <ActiveModelCard />
+          <ActiveModelCard/>
         </Card>
 
         <Card title="Insights">

@@ -3,7 +3,6 @@ import "server-only";
 import GraphSection from "@/app/Components/GraphSection";
 import LibraryNav from "@/app/Components/LibraryNav";
 import MetricCard from "@/app/Components/MetricCard";
-import BestTimesCard from "@/app/Components/BestTimesCard";
 
 type Point = { time_local: string; predicted?: number };
 type PageProps = { params: { libkey: string }, searchParams?: Record<string, string | string[] | undefined> };
