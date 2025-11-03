@@ -16,19 +16,12 @@ type DefaultDto = {
 
 type CandidateFamily = {
   family: FamilyKey;
-  versions: string[]; // e.g. ["v1.0", "v1.1", "v1.2"]
-};
-
-type CandidatesResponse = {
-  library: string;
-  families: CandidateFamily[];
-  current_default: DefaultDto; // may be null
+  versions: string[];
 };
 
 type Props = {
-  // Optional callback; safe no-op if parent doesn’t pass it
   onChange?: (value: { library: string; family: FamilyKey; version: string } | null) => void;
-  apiBase?: string; // defaults to NEXT_PUBLIC_API_URL
+  apiBase?: string;
 };
 
 const familiesOrder: FamilyKey[] = ['cnn', 'lstm', 'cnn_lstm', 'cnn_lstm_attn'];
@@ -42,20 +35,22 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
   // form state
   const [libraries, setLibraries] = useState<LibraryDto[]>([]);
   const [libKey, setLibKey] = useState<string>('');
-
   const [candidates, setCandidates] = useState<CandidateFamily[]>([]);
   const [currentDefault, setCurrentDefault] = useState<DefaultDto>(null);
-
   const [family, setFamily] = useState<FamilyKey | ''>('');
   const [version, setVersion] = useState<string>('');
-  
-  const [csrf, setCsrf] = useState<string>("");
+
+  // csrf + refresh + sync status
+  const [csrf, setCsrf] = useState<string>('');
+  const [refreshTick, setRefreshTick] = useState<number>(0);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [syncMsg, setSyncMsg] = useState<{ kind: 'success' | 'info' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/users/csrf/`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : { csrfToken: "" })
-      .then(d => setCsrf(d?.csrfToken || ""));
-  }, []);
+    fetch(`${API}/users/csrf/`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { csrfToken: '' }))
+      .then((d) => setCsrf(d?.csrfToken || ''));
+  }, [API]);
 
   const selectedFamily = useMemo(
     () => candidates.find((f) => f.family === family) || null,
@@ -74,12 +69,17 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
     safeOnChange(null);
   };
 
+  const flashMsg = (msg: { kind: 'success' | 'info' | 'error'; text: string }) => {
+    setSyncMsg(msg);
+    // auto-hide after 5s
+    window.setTimeout(() => setSyncMsg(null), 5000);
+  };
+
   // ----- fetch libraries once -----
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        // GET /libraries → [{ key, title }]
         const res = await fetch(`${API}/occupancy/libraries/`);
         if (!res.ok) throw new Error(`Libraries fetch failed (${res.status})`);
         const data: LibraryDto[] = await res.json();
@@ -94,7 +94,7 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
     };
   }, [API]);
 
-  // ----- fetch candidates when library changes -----
+  // ----- fetch candidates when library changes or refreshTick bumps -----
   useEffect(() => {
     if (!libKey) {
       setCandidates([]);
@@ -105,17 +105,9 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        // Expected JSON (example):
-        // {
-        //   "library": "american_corner",
-        //   "families": [
-        //     {"family":"cnn","versions":["v1.0","v1.2"]},
-        //     {"family":"lstm","versions":["v1.0"]},
-        //     ...
-        //   ],
-        //   "current_default": {"family":"cnn_lstm","version":"v1.0"} // or null
-        // }
-        const res = await fetch(`${API}/occupancy/models/candidates?library=${encodeURIComponent(libKey)}`);
+        const res = await fetch(
+          `${API}/occupancy/models/candidates?library=${encodeURIComponent(libKey)}`
+        );
         if (!res.ok) throw new Error(`Candidates fetch failed (${res.status})`);
         const raw = await res.json();
 
@@ -123,23 +115,24 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
         let current_default: DefaultDto = null;
         let library = libKey;
 
-        // Handle old flat format (array) or new structured format
         if (Array.isArray(raw)) {
           const grouped: Record<string, string[]> = {};
           for (const c of raw) {
             if (!grouped[c.family]) grouped[c.family] = [];
             grouped[c.family].push(c.version);
           }
-          families = Object.entries(grouped).map(([family, versions]) => ({ family: family as FamilyKey, versions }));
+          families = Object.entries(grouped).map(([fam, versions]) => ({
+            family: fam as FamilyKey,
+            versions,
+          }));
         } else if (raw && Array.isArray(raw.families)) {
           families = raw.families;
           current_default = raw.current_default ?? null;
           library = raw.library ?? libKey;
         } else {
-          throw new Error("Unexpected response format");
+          throw new Error('Unexpected response format');
         }
 
-        // sort families to a stable, friendly order
         const sorted = [...families].sort(
           (a, b) => familiesOrder.indexOf(a.family) - familiesOrder.indexOf(b.family)
         );
@@ -148,7 +141,6 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
           setCandidates(sorted);
           setCurrentDefault(current_default ?? null);
 
-          // Auto-preselect: use current default if available, else first family/first version
           if (current_default) {
             setFamily(current_default.family);
             setVersion(current_default.version);
@@ -180,9 +172,9 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [API, libKey]);
+  }, [API, libKey, refreshTick]);
 
-  // ----- propagate changes upward (for analytics or preview) -----
+  // ----- propagate changes upward -----
   useEffect(() => {
     if (!libKey || !family || !version) return;
     safeOnChange({ library: libKey, family, version });
@@ -195,18 +187,73 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
       const res = await fetch(`${API}/occupancy/models/active/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ library: libKey, family, version, }),
+        body: JSON.stringify({ library: libKey, family, version }),
       });
       if (!res.ok) throw new Error(`Failed to set default (${res.status})`);
       setCurrentDefault({ family, version });
     } catch (e) {
       console.error(e);
-      // you can show a toast here if you have one
     }
   };
 
+  const syncModels = async () => {
+    try {
+      setSyncing(true);
+      const res = await fetch(`${API}/occupancy/models/sync/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+        },
+        credentials: 'include',
+      });
+
+      // try to read the JSON even when !ok (backend may still return details)
+      const data = await res.json().catch(() => ({} as any));
+
+      if (!res.ok) {
+        throw new Error(data?.detail || `Sync failed (${res.status})`);
+      }
+
+      const created = Number(data?.created ?? 0);
+      if (created > 0) {
+        flashMsg({ kind: 'success', text: `Synced ${created} new model${created === 1 ? '' : 's'}.` });
+      } else {
+        flashMsg({ kind: 'info', text: 'Models already in sync (0 added).' });
+      }
+
+      // re-fetch candidates for current library
+      setRefreshTick((t) => t + 1);
+      console.log('Sync complete', data);
+    } catch (e: any) {
+      console.error(e);
+      flashMsg({ kind: 'error', text: e?.message || 'Sync failed.' });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // banner ui
+  const banner =
+    syncMsg &&
+    ({
+      success: 'bg-green-50 text-green-800 border-green-200',
+      info: 'bg-blue-50 text-blue-800 border-blue-200',
+      error: 'bg-red-50 text-red-800 border-red-200',
+    } as const)[syncMsg.kind];
+
   return (
     <div className="w-full rounded-2xl bg-white p-6 shadow">
+      {/* Sync status banner */}
+      {syncMsg && (
+        <div
+          className={`mb-4 rounded-xl border px-4 py-3 text-sm ${banner}`}
+          role="status"
+          aria-live="polite"
+        >
+          {syncMsg.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Library */}
@@ -235,7 +282,6 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
             onChange={(e) => {
               const next = e.target.value as FamilyKey | '';
               setFamily(next);
-              // reset version when family changes
               const first = candidates.find((c) => c.family === next)?.versions?.[0] || '';
               setVersion(first);
             }}
@@ -280,13 +326,24 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
         )}
       </div>
 
-      <button
-        onClick={setAsDefault}
-        disabled={!libKey || !family || !version}
-        className="mt-4 w-full rounded-xl bg-[#FBC02D] px-4 py-3 font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        Set as Student Default
-      </button>
+      {/* Actions */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <button
+          onClick={syncModels}
+          disabled={syncing}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3 font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+        >
+          {syncing ? 'Syncing…' : 'Sync Models from Artifacts'}
+        </button>
+
+        <button
+          onClick={setAsDefault}
+          disabled={!libKey || !family || !version}
+          className="w-full rounded-xl bg-[#FBC02D] px-4 py-3 font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Set as Student Default
+        </button>
+      </div>
     </div>
   );
 }
