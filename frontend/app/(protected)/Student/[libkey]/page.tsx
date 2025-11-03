@@ -5,9 +5,11 @@ import LibraryNav from "@/app/Components/LibraryNav";
 import MetricCard from "@/app/Components/MetricCard";
 
 type Point = { time_local: string; predicted?: number };
+type RawParams = { libkey: string };
+type RawSearchParams = Record<string, string | string[] | undefined>;
 type PageProps = {
-params: { libkey: string };
-searchParams?: Promise<Record<string, string | string[] | undefined>>;
+params: Promise<{ libkey: string }>;
+searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const pickOne = (v: string | string[] | undefined) =>
@@ -19,11 +21,12 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function LibraryDetailPage({ params, searchParams }: PageProps) {
-  const resolvedParams = await searchParams
+  const resolvedParams = await params
+  const resolvedSearch = await searchParams
   const base = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
-  const libKey = safeToken(params.libkey);
-  const family = safeToken(pickOne(resolvedParams?.family)) || "";
-  const date = pickOne(resolvedParams?.date) ?? new Date().toISOString().slice(0, 10);
+  const libKey = safeToken(resolvedParams.libkey);
+  const family = safeToken(pickOne(resolvedSearch?.family)) || "";
+  const date = pickOne(resolvedSearch?.date) ?? new Date().toISOString().slice(0, 10);
 
   const u = new URL(`${base}/occupancy/forecast/day`);
   u.searchParams.set("library", libKey);
