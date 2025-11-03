@@ -75,16 +75,16 @@ export default function AdminUsersTable() {
         body: JSON.stringify({ role: newRoleLower }),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Failed to update role");
-      }
-      setNotice({ kind: "success", text: `Updated ${user.email} → ${newDisplay}` });
-    } catch (e: any) {
-      // revert
-      if (prev) setData(prev);
-      setNotice({ kind: "error", text: e?.message || "Update failed" });
-    }
+      if (!res.ok) { 
+        const err = await res.json().catch(() => ({})); 
+        throw new Error((err as { detail?: string }).detail || "Failed to update role"); 
+      } 
+      setNotice({ kind: "success", text: `Updated ${user.email} → ${newDisplay}` }); 
+    } 
+    catch (err) { 
+      if (prev) setData(prev); 
+      const message = err instanceof Error ? err.message : "Update failed"; 
+      setNotice({ kind: "error", text: message }); }
   };
 
   return (
