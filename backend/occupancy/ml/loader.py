@@ -107,6 +107,31 @@ def load_artifacts(family: str, lib_key: str) -> Tuple[Any, Any, int, Dict[str, 
 
     return model, occ_scaler, window, meta
 
+def get_model_bundle(family: str, lib_key: str):
+    """
+    Back-compat for legacy callers:
+    Returns (model, preproc, meta) where:
+      - preproc["spec"]["window"] (int)
+      - preproc["spec"]["feature_order"] (list[str])  # present for hybrid
+      - preproc["occ_scaler"] (scaler)
+      - preproc["ohe"] (sklearn OneHotEncoder)  # only for hybrid models
+    """
+    model, occ_scaler, window, meta = load_artifacts(family, lib_key)
+
+    # Build the legacy `preproc` dict shape expected by existing code
+    feature_order = meta.get("feature_order") or ["occupancy_scaled"]
+    preproc = {
+        "spec": {
+            "window": int(window),
+            "feature_order": feature_order,
+        },
+        "occ_scaler": occ_scaler,
+    }
+    if meta.get("ohe") is not None:
+        preproc["ohe"] = meta["ohe"]
+
+    return model, preproc, meta
+
 # ---------- Discovery helpers (handy for the Admin “Active Model” UI) ----------
 def list_library_families(lib_key: str) -> List[Dict[str, Any]]:
     """
