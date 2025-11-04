@@ -1,229 +1,356 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from 'react';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+type FamilyKey = 'cnn' | 'lstm' | 'cnn_lstm' | 'cnn_lstm_attn';
 
-type Library = { id: number; key: string; name: string };
-type Candidate = { id: number; library_key: string; family: string; version: string };
-type Notice = { kind: "success" | "error" | "info"; text: string };
+type LibraryDto = {
+  key: string;
+  title: string;
+};
 
-export default function ActiveModelCard() {
-  const [libraries, setLibraries] = useState<Library[]>([]);
-  const [libKey, setLibKey] = useState("");
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [active, setActive] = useState<{ family: string; version: string } | null>(null);
-  const [selFamily, setSelFamily] = useState("");
-  const [selVersion, setSelVersion] = useState("");
-  const [csrf, setCsrf] = useState<string>("");
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<Notice | null>(null);
+type DefaultDto = {
+  family: FamilyKey;
+  version: string;
+} | null;
 
-  // CSRF (needed for PUT with credentials)
-  useEffect(() => {
-    fetch(`${API_BASE}/users/csrf/`, { credentials: "include" })
-      .then(r => r.ok ? r.json() : { csrfToken: "" })
-      .then(d => setCsrf(d?.csrfToken || ""));
-  }, []);
+type CandidateFamily = {
+  family: FamilyKey;
+  versions: string[];
+};
 
-  // Load libraries
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch(`${API_BASE}/occupancy/libraries/`, { credentials: "include" });
-        if (!r.ok) throw new Error("Failed to load libraries");
-        setLibraries(await r.json());
-      } catch (e: any) {
-        setNotice({ kind: "error", text: e.message || "Could not load libraries." });
-      }
-    })();
-  }, []);
+type Props = {
+  onChange?: (value: { library: string; family: FamilyKey; version: string } | null) => void;
+  apiBase?: string;
+};
 
-  // When library changes: load candidates, then active (404 is OK)
-  useEffect(() => {
-    if (!libKey) return;
-    setNotice(null);
+const familiesOrder: FamilyKey[] = ['cnn', 'lstm', 'cnn_lstm', 'cnn_lstm_attn'];
 
-    (async () => {
-      try {
-        // 1) candidates
-        const candRes = await fetch(
-          `${API_BASE}/occupancy/models/candidates/?library=${encodeURIComponent(libKey)}`,
-          { credentials: "include" }
-        );
-        if (!candRes.ok) throw new Error("Failed to load candidates");
-        const candData: Candidate[] = await candRes.json();
-        setCandidates(candData);
-
-        // 2) active (404 means “none”)
-        const activeRes = await fetch(
-          `${API_BASE}/occupancy/models/active/?library=${encodeURIComponent(libKey)}`,
-          { credentials: "include" }
-        );
-
-        if (activeRes.status === 404) {
-            setActive(null); // show “None”
-        } else if (!activeRes.ok) {
-            throw new Error("Failed to load active model");
-        } else {
-        const activeData = await activeRes.json();
-            setActive({ family: activeData.family, version: activeData.version });
-        }
-
-        // 3) set defaults for selects
-        if (candData.length === 0) {
-          setSelFamily("");
-          setSelVersion("");
-          return;
-        }
-
-        const allFamilies = Array.from(new Set(candData.map(c => c.family)));
-        const initFamily =
-          (activeRes.status === 200 && candData.some(c => c.family === (active as any)?.family))
-            ? (active as any).family
-            : allFamilies[0];
-
-        const versions = candData.filter(c => c.family === initFamily).map(c => c.version);
-        const initVersion =
-          (activeRes.status === 200 &&
-            (active as any) &&
-            candData.some(c => c.family === initFamily && c.version === (active as any).version))
-            ? (active as any).version
-            : versions[0];
-
-        setSelFamily(initFamily);
-        setSelVersion(initVersion);
-      } catch (e: any) {
-        setNotice({ kind: "error", text: e.message || "Load error." });
-      }
-    })();
-  }, [libKey]);
-
-  // Families + versions derived
-  const families = useMemo(
-    () => Array.from(new Set(candidates.map(c => c.family))),
-    [candidates]
-  );
-  const versionsForSelFamily = useMemo(
-    () => candidates.filter(c => c.family === selFamily).map(c => c.version),
-    [candidates, selFamily]
+export default function ActiveModelCard({ onChange, apiBase }: Props) {
+  const API = useMemo(
+    () => (apiBase || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, ''),
+    [apiBase]
   );
 
-  // If family changes, ensure version is valid
-  useEffect(() => {
-    if (!selFamily) return;
-    const versions = candidates.filter(c => c.family === selFamily).map(c => c.version);
-    if (versions.length && !versions.includes(selVersion)) {
-      setSelVersion(versions[0]);
-    }
-  }, [selFamily, candidates]); // eslint-disable-line react-hooks/exhaustive-deps
+  // form state
+  const [libraries, setLibraries] = useState<LibraryDto[]>([]);
+  const [libKey, setLibKey] = useState<string>('');
+  const [candidates, setCandidates] = useState<CandidateFamily[]>([]);
+  const [currentDefault, setCurrentDefault] = useState<DefaultDto>(null);
+  const [family, setFamily] = useState<FamilyKey | ''>('');
+  const [version, setVersion] = useState<string>('');
 
-  const onSave = async () => {
-    if (!libKey || !selFamily || !selVersion) {
-      setNotice({ kind: "error", text: "Please choose library, family, and version." });
+  // csrf + refresh + sync status
+  const [csrf, setCsrf] = useState<string>('');
+  const [refreshTick, setRefreshTick] = useState<number>(0);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [syncMsg, setSyncMsg] = useState<{ kind: 'success' | 'info' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/users/csrf/`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { csrfToken: '' }))
+      .then((d) => setCsrf(d?.csrfToken || ''));
+  }, [API]);
+
+  const selectedFamily = useMemo(
+    () => candidates.find((f) => f.family === family) || null,
+    [candidates, family]
+  );
+  const versionOptions = selectedFamily?.versions ?? [];
+
+  // ----- helpers -----
+  const safeOnChange = (payload: { library: string; family: FamilyKey; version: string } | null) => {
+    if (typeof onChange === 'function') onChange(payload);
+  };
+
+  const resetSelection = () => {
+    setFamily('');
+    setVersion('');
+    safeOnChange(null);
+  };
+
+  const flashMsg = (msg: { kind: 'success' | 'info' | 'error'; text: string }) => {
+    setSyncMsg(msg);
+    // auto-hide after 5s
+    window.setTimeout(() => setSyncMsg(null), 5000);
+  };
+
+  // ----- fetch libraries once -----
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API}/occupancy/libraries/`);
+        if (!res.ok) throw new Error(`Libraries fetch failed (${res.status})`);
+        const data: LibraryDto[] = await res.json();
+        if (!cancelled) setLibraries(data);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) setLibraries([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [API]);
+
+  // ----- fetch candidates when library changes or refreshTick bumps -----
+  useEffect(() => {
+    if (!libKey) {
+      setCandidates([]);
+      setCurrentDefault(null);
+      resetSelection();
       return;
     }
-    setSaving(true);
-    setNotice(null);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API}/occupancy/models/candidates?library=${encodeURIComponent(libKey)}`
+        );
+        if (!res.ok) throw new Error(`Candidates fetch failed (${res.status})`);
+        const raw = await res.json();
+
+        let families: CandidateFamily[] = [];
+        let current_default: DefaultDto = null;
+        let library = libKey;
+
+        if (Array.isArray(raw)) {
+          const grouped: Record<string, string[]> = {};
+          for (const c of raw) {
+            if (!grouped[c.family]) grouped[c.family] = [];
+            grouped[c.family].push(c.version);
+          }
+          families = Object.entries(grouped).map(([fam, versions]) => ({
+            family: fam as FamilyKey,
+            versions,
+          }));
+        } else if (raw && Array.isArray(raw.families)) {
+          families = raw.families;
+          current_default = raw.current_default ?? null;
+          library = raw.library ?? libKey;
+        } else {
+          throw new Error('Unexpected response format');
+        }
+
+        const sorted = [...families].sort(
+          (a, b) => familiesOrder.indexOf(a.family) - familiesOrder.indexOf(b.family)
+        );
+
+        if (!cancelled) {
+          setCandidates(sorted);
+          setCurrentDefault(current_default ?? null);
+
+          if (current_default) {
+            setFamily(current_default.family);
+            setVersion(current_default.version);
+            safeOnChange({
+              library: library,
+              family: current_default.family,
+              version: current_default.version,
+            });
+          } else if (sorted.length) {
+            const f = sorted[0].family;
+            const v = sorted[0].versions?.[0] || '';
+            setFamily(f);
+            setVersion(v);
+            if (f && v) safeOnChange({ library: library, family: f, version: v });
+          } else {
+            resetSelection();
+          }
+        }
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setCandidates([]);
+          setCurrentDefault(null);
+          resetSelection();
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [API, libKey, refreshTick]);
+
+  // ----- propagate changes upward -----
+  useEffect(() => {
+    if (!libKey || !family || !version) return;
+    safeOnChange({ library: libKey, family, version });
+  }, [libKey, family, version]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ----- actions -----
+  const setAsDefault = async () => {
+    if (!libKey || !family || !version) return;
     try {
-      const r = await fetch(`${API_BASE}/occupancy/models/active/`, {
-        method: "PUT",
-        credentials: "include",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": csrf,    // <-- add this
-        },
-        body: JSON.stringify({ library: libKey, family: selFamily, version: selVersion }),
+      const res = await fetch(`${API}/occupancy/models/active/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ library: libKey, family, version }),
       });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.detail || "Failed to set active model.");
-      setActive({ family: selFamily, version: selVersion });
-      setNotice({ kind: "success", text: "Student view default updated." });
-    } catch (e: any) {
-      setNotice({ kind: "error", text: e.message || "Save failed." });
-    } finally {
-      setSaving(false);
+      if (!res.ok) throw new Error(`Failed to set default (${res.status})`);
+      setCurrentDefault({ family, version });
+    } catch (e) {
+      console.error(e);
     }
   };
 
+  const syncModels = async () => {
+    try {
+      setSyncing(true);
+      const res = await fetch(`${API}/occupancy/models/sync/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+        },
+        credentials: 'include',
+      });
+
+      interface SyncResponse{
+        created?: number;
+        detail?: string;
+      }
+
+      // try to read the JSON even when !ok (backend may still return details)
+      const data: SyncResponse = await res.json().catch(() => ({} as SyncResponse));
+
+      if (!res.ok) {
+        throw new Error(data?.detail || `Sync failed (${res.status})`);
+      }
+
+      const created = Number(data?.created ?? 0);
+      if (created > 0) {
+        flashMsg({ kind: 'success', text: `Synced ${created} new model${created === 1 ? '' : 's'}.` });
+      } else {
+        flashMsg({ kind: 'info', text: 'Models already in sync (0 added).' });
+      }
+
+      // re-fetch candidates for current library
+      setRefreshTick((t) => t + 1);
+      console.log('Sync complete', data);
+    } catch (e) {
+      const errorMessage =
+      e instanceof Error ? e.message : 'Unexpected error during sync.';
+      console.error(e);
+      flashMsg({ kind: 'error', text: errorMessage });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // banner ui
+  const banner =
+    syncMsg &&
+    ({
+      success: 'bg-green-50 text-green-800 border-green-200',
+      info: 'bg-blue-50 text-blue-800 border-blue-200',
+      error: 'bg-red-50 text-red-800 border-red-200',
+    } as const)[syncMsg.kind];
+
   return (
-    <div className="text-left">
-      {notice && (
+    <div className="w-full rounded-2xl bg-white p-6 shadow">
+      {/* Sync status banner */}
+      {syncMsg && (
         <div
-          className={`mb-4 text-sm rounded-lg px-3 py-2 ${
-            notice.kind === "success"
-              ? "bg-green-50 border border-green-200 text-green-800"
-              : notice.kind === "error"
-              ? "bg-red-50 border border-red-200 text-red-800"
-              : "bg-blue-50 border border-blue-200 text-blue-800"
-          }`}
+          className={`mb-4 rounded-xl border px-4 py-3 text-sm ${banner}`}
+          role="status"
+          aria-live="polite"
         >
-          {notice.text}
+          {syncMsg.text}
         </div>
       )}
 
-      <label className="block text-sm font-semibold text-gray-700 mb-1">Library</label>
-      <select
-        className="w-full border rounded-lg px-3 py-2 mb-3 text-addu-ink bg-white border-gray-300 hover:border-addu-indigo/70 focus:ring-2 focus:ring-addu-indigo outline-none"
-        value={libKey}
-        onChange={(e) => setLibKey(e.target.value)}
-      >
-        <option value="">Choose a library</option>
-        {libraries.map((lib) => (
-          <option key={lib.id} value={lib.key}>{lib.name}</option>
-        ))}
-      </select>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Model family</label>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {/* Library */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium">Library</label>
           <select
-            value={selFamily}
-            onChange={(e) => setSelFamily(e.target.value)}
-            disabled={!libKey || families.length === 0}
-            className="w-full border rounded-lg px-3 py-2 text-addu-ink bg-white border-gray-300 hover:border-addu-indigo/70 focus:ring-2 focus:ring-addu-indigo outline-none"
+            className="rounded-lg border px-3 py-2"
+            value={libKey}
+            onChange={(e) => setLibKey(e.target.value)}
           >
-            {families.length === 0 && <option value="">No candidates</option>}
-            {families.map((f) => (
-              <option key={f} value={f}>{f}</option>
+            <option value="">Choose a library</option>
+            {libraries.map((l) => (
+              <option key={l.key} value={l.key}>
+                {l.title || l.key}
+              </option>
             ))}
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Version</label>
+        {/* Family */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium">Model family</label>
           <select
-            value={selVersion}
-            onChange={(e) => setSelVersion(e.target.value)}
-            disabled={!libKey || versionsForSelFamily.length === 0}
-            className="w-full border rounded-lg px-3 py-2 text-addu-ink bg-white border-gray-300 hover:border-addu-indigo/70 focus:ring-2 focus:ring-addu-indigo outline-none"
+            className="rounded-lg border px-3 py-2"
+            value={family}
+            onChange={(e) => {
+              const next = e.target.value as FamilyKey | '';
+              setFamily(next);
+              const first = candidates.find((c) => c.family === next)?.versions?.[0] || '';
+              setVersion(first);
+            }}
+            disabled={!libKey || candidates.length === 0}
           >
-            {versionsForSelFamily.length === 0 && <option value="">No versions</option>}
-            {versionsForSelFamily.map((v) => (
-              <option key={v} value={v}>{v}</option>
+            {(!libKey || candidates.length === 0) && <option>No candidates</option>}
+            {candidates.map((f) => (
+              <option key={f.family} value={f.family}>
+                {f.family}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Version */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium">Version</label>
+          <select
+            className="rounded-lg border px-3 py-2"
+            value={version}
+            onChange={(e) => setVersion(e.target.value)}
+            disabled={!family || versionOptions.length === 0}
+          >
+            {(!family || versionOptions.length === 0) && <option>No versions</option>}
+            {versionOptions.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
             ))}
           </select>
         </div>
       </div>
 
-      <div className="mt-4 text-sm text-gray-600">
-        <span className="font-semibold">Current student default:</span>{" "}
-        {active ? (
-          <span className="text-addu-indigo">{active.family} / {active.version}</span>
+      <div className="mt-3 text-sm">
+        Current student default:{' '}
+        {currentDefault ? (
+          <span className="font-medium">
+            {currentDefault.family} / {currentDefault.version}
+          </span>
         ) : (
-          <span className="text-gray-500">None</span>
+          <span className="italic text-gray-500">None</span>
         )}
       </div>
 
-      <button
-        onClick={onSave}
-        disabled={saving || !libKey || !selFamily || !selVersion}
-        className={`mt-5 w-full rounded-lg px-4 py-2 font-semibold text-addu-ink shadow transition ${
-          saving ? "bg-gray-300 cursor-not-allowed" : "bg-addu-gold hover:bg-addu-amber"
-        }`}
-      >
-        {saving ? "Saving…" : "Set as Student Default"}
-      </button>
+      {/* Actions */}
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <button
+          onClick={syncModels}
+          disabled={syncing}
+          className="w-full rounded-xl border border-gray-300 px-4 py-3 font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+        >
+          {syncing ? 'Syncing…' : 'Sync Models from Artifacts'}
+        </button>
+
+        <button
+          onClick={setAsDefault}
+          disabled={!libKey || !family || !version}
+          className="w-full rounded-xl bg-[#FBC02D] px-4 py-3 font-semibold text-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Set as Student Default
+        </button>
+      </div>
     </div>
   );
 }
