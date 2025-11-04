@@ -15,6 +15,7 @@ from datetime import timedelta
 import os
 import dj_database_url
 from rest_framework.permissions import AllowAny
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -174,8 +175,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 SITE_ID = 1
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://wifi-occupancy-prediction-five.vercel.app").rstrip("/")
-LOGIN_REDIRECT_URL = f"{FRONTEND_URL}/Student"
-ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}/"
+LOGIN_REDIRECT_URL = "/users/role-redirect/"
+ACCOUNT_LOGOUT_REDIRECT_URL = f"{FRONTEND_URL}"
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
@@ -193,10 +194,15 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOW_HEADERS = [
     "authorization",
     "content-type",
+    "x-csrftoken", 
+    "x-csrf-token",
+    "x-requested-with",
+    "accept",
 ]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
 
@@ -253,13 +259,11 @@ USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 if DEBUG:
-    ACCOUNT_DEFAULT_HTTP_PROTOCOL = "http"
     SESSION_COOKIE_SAMESITE = "Lax"
     SESSION_COOKIE_SECURE = False
     CSRF_COOKIE_SAMESITE = "Lax"
     CSRF_COOKIE_SECURE = False
 else:
-    ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
     SESSION_COOKIE_SAMESITE = "None"
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SAMESITE = "None"

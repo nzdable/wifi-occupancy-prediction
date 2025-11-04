@@ -1,4 +1,3 @@
-# services.py (only replace predict_latest_from_db)
 import pandas as pd, numpy as np
 from django.utils import timezone
 from occupancy.models import Library, Signal, Forecast

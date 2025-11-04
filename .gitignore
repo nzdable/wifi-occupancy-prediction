@@ -52,7 +52,3 @@ __pycache__/
 venv/
 ENV/
 env/
-
-#ML artifacts
-backend/artifacts/
-artifacts/

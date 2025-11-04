@@ -19,8 +19,8 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractBaseUser, PermissionsMixin):
     ROLE_CHOICES = [
-        ("Student", "student"),
-        ("Admin", "admin"),
+        ("student", "Student"),
+        ("admin", "Admin"),
     ]
 
     STATUS_CHOICES = [
@@ -30,7 +30,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     email = models.EmailField(unique=True)
     name = models.CharField(max_length=255, blank = True, null = True)
-    role = models.CharField(max_length=20, default = "Student")
+    role = models.CharField(max_length=20, default = "student")
     status = models.CharField(max_length=20, default = "Active")
 
     is_staff = models.BooleanField(default = False)
