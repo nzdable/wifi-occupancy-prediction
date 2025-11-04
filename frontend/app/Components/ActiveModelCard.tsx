@@ -208,8 +208,13 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
         credentials: 'include',
       });
 
+      interface SyncResponse{
+        created?: number;
+        detail?: string;
+      }
+
       // try to read the JSON even when !ok (backend may still return details)
-      const data = await res.json().catch(() => ({} as any));
+      const data: SyncResponse = await res.json().catch(() => ({} as SyncResponse));
 
       if (!res.ok) {
         throw new Error(data?.detail || `Sync failed (${res.status})`);
@@ -225,9 +230,11 @@ export default function ActiveModelCard({ onChange, apiBase }: Props) {
       // re-fetch candidates for current library
       setRefreshTick((t) => t + 1);
       console.log('Sync complete', data);
-    } catch (e: any) {
+    } catch (e) {
+      const errorMessage =
+      e instanceof Error ? e.message : 'Unexpected error during sync.';
       console.error(e);
-      flashMsg({ kind: 'error', text: e?.message || 'Sync failed.' });
+      flashMsg({ kind: 'error', text: errorMessage });
     } finally {
       setSyncing(false);
     }
