@@ -8,12 +8,12 @@ export const revalidate = 0;
 export default function StudentPage() {
   // Replace capacities with real values (or fetch from /occupancy/libraries/)
   const libs = [
-    { key: "gisbert_2nd_floor", title: "Gisbert Library (2nd Floor)", capacity: 80 },
-    { key: "gisbert_3rd_floor", title: "Gisbert Library (3rd Floor)", capacity: 40 },
-    { key: "gisbert_4th_floor", title: "Gisbert Library (4th Floor)", capacity: 40 },
-    { key: "gisbert_5th_floor", title: "Gisbert Library (5th Floor)", capacity: 50 },
-    { key: "american_corner",  title: "American Corner",              capacity: 70 },
-    { key: "miguel_pro",       title: "Miguel Pro",                   capacity: 70 },
+    { key: "gisbert_2nd_floor", title: "Gisbert Library (2nd Floor)", capacity: 250 },
+    { key: "gisbert_3rd_floor", title: "Gisbert Library (3rd Floor)", capacity: 100 },
+    { key: "gisbert_4th_floor", title: "Gisbert Library (4th Floor)", capacity: 100 },
+    { key: "gisbert_5th_floor", title: "Gisbert Library (5th Floor)", capacity: 100 },
+    { key: "american_corner",  title: "American Corner",              capacity: 80 },
+    { key: "miguel_pro",       title: "Miguel Pro",                   capacity: 500 },
   ];
 
   return (

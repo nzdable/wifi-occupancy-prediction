@@ -90,6 +90,7 @@ def _forecast_steps(
     steps: int,
     base_index: Optional[pd.DatetimeIndex],
     meta: dict,
+    lib_key: str,
 ) -> np.ndarray:
     """
     Always call walk_forward; it auto-switches to hybrid if meta carries
@@ -114,6 +115,7 @@ def _forecast_steps(
         steps=int(steps),
         base_index=idx,
         meta=meta,
+        lib_key= lib_key
     )
 
 # -------------------- views --------------------
@@ -169,13 +171,29 @@ class ForecastAtView(APIView):
             }, status=200)
 
         last_known = history.index[-1]
+        last_known_value = history.iloc[-1]  # Get the actual value
         gap_h = int(np.ceil((when_utc - last_known).total_seconds() / 3600.0))
 
         base_vals = history.values.astype(float)
         base_index = pd.DatetimeIndex(history.index)  # satisfy type checkers
 
+        # FIXED LOGIC: Use actual data for very recent gaps when available
+        if gap_h <= 2 and last_known_value > 0:
+            # For gaps up to 2 hours with valid data, use actual measurement
+            # This is more reliable than forecasting with sparse data
+            return Response({
+                "ok": True, "stale": False, "mode": "actual",
+                "prediction": int(round(max(0, last_known_value))),
+                "library": lib.key, "model_family": family,
+                "model_version": meta.get("model_version"),
+                "data_ts_latest": last_known.isoformat(),
+                "requested_utc": when_utc.isoformat(),
+                "generated_at": timezone.now().isoformat(),
+            }, status=200)
+
+        # Original forecast logic for other cases
         if gap_h <= 2:
-            yhat = float(_forecast_steps(model, scaler, window, base_vals, max(1, gap_h), base_index, meta)[-1])
+            yhat = float(_forecast_steps(model, scaler, window, base_vals, max(1, gap_h), base_index, meta, lib.key)[-1])
             return Response({
                 "ok": True, "stale": False, "mode": "live",
                 "prediction": int(round(max(0, yhat))),
@@ -204,7 +222,8 @@ class ForecastAtView(APIView):
                 base_vals=s_filled.values.astype(float),
                 steps=max(1, gap_h),
                 base_index=pd.DatetimeIndex(s_filled.index),
-                meta=meta
+                meta=meta,
+                lib_key=lib.key
             )[-1])
 
             return Response({
@@ -282,7 +301,7 @@ class ForecastDayView(APIView):
         if gap_h > 0:
             MAX_GAP = 24 * 90
             gap_h = min(gap_h, MAX_GAP)
-            gap_preds = _forecast_steps(model, scaler, window, base_vals, gap_h, base_index, meta)
+            gap_preds = _forecast_steps(model, scaler, window, base_vals, gap_h, base_index, meta, lib.key)
 
             seed_vals = np.concatenate([base_vals, gap_preds]).astype(float)
             gap_index = pd.date_range(
@@ -297,7 +316,7 @@ class ForecastDayView(APIView):
             seed_index = base_index
 
         # Forecast the 24 hours for the requested day
-        day_preds = _forecast_steps(model, scaler, window, seed_vals, 24, seed_index, meta)
+        day_preds = _forecast_steps(model, scaler, window, seed_vals, 24, seed_index, meta, lib.key)
         out_vals = day_preds[-24:]
 
         preds = [int(round(max(0.0, x))) for x in out_vals]

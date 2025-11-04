@@ -1,1 +1,21 @@
-{"model_version": "v1.1", "horizons_min": [0]}
+{
+  "model_version": "v1.2",
+  "horizons_min": [
+    0
+  ],
+  "model_family": "cnn_lstm_attn",
+  "feature_engineered": true,
+  "sequence_length": 24,
+  "n_features": 45,
+  "training_date": "2025-11-04T06:17:00.358763",
+  "expected_occupancy_range": {
+    "min": 0,
+    "max": 353,
+    "mean": 5
+  },
+  "performance": {
+    "r2": 0.310001362181867,
+    "rmse": 9.487275919902364,
+    "mse": 90.00840438035925
+  }
+}

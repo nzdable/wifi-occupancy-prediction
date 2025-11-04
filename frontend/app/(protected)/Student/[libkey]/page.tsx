@@ -8,14 +8,14 @@ type Point = { time_local: string; predicted?: number };
 type RawParams = { libkey: string };
 type RawSearchParams = Record<string, string | string[] | undefined>;
 type PageProps = {
-params: Promise<{ libkey: string }>;
-searchParams: Promise<Record<string, string | string[] | undefined>>;
+  params: Promise<{ libkey: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 const pickOne = (v: string | string[] | undefined) =>
-Array.isArray(v) ? v[0] : v;
+  Array.isArray(v) ? v[0] : v;
 const safeToken = (v: string | undefined) =>
-(v ?? "").replace(/['"]/g, "").toLowerCase();
+  (v ?? "").replace(/['"]/g, "").toLowerCase();
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,33 +47,48 @@ export default async function LibraryDetailPage({ params, searchParams }: PagePr
   const peakIdx = predicted.indexOf(peak);
 
   return (
-    <div className="min-h-screen px-6 py-6 space-y-6 bg-addu-ink text-white font-inter">
-      <div className="bg-gradient-to-r from-addu-navy via-addu-royal to-addu-indigo rounded-2xl p-4 shadow-md">
-        <LibraryNav current={libKey} />
+    <div className="min-h-screen bg-gradient-to-br from-addu-ink via-addu-navy to-addu-ink text-white font-inter">
+      {/* Header Section */}
+      <div className="bg-gradient-to-r from-addu-navy via-addu-royal to-addu-indigo rounded-b-3xl px-6 py-8 shadow-2xl">
+        <div className="max-w-7xl mx-auto">
+          <LibraryNav current={libKey} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard label="Peak (predicted)" value={`${peak} ppl`} sub={labels[peakIdx] ?? "--"} />
-        <MetricCard
-          label="Average (predicted)"
-          value={`${Math.round(predicted.reduce((a, b) => a + b, 0) / Math.max(predicted.length, 1))} ppl`}
-          sub="across the day"
-        />
-        <MetricCard
-          label="Current hour (predicted)"
-          value={`${predicted[new Date().getHours()] ?? "--"} ppl`}
-          sub={new Date().toLocaleString([], { hour: "numeric" })}
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <MetricCard 
+            label="Peak (predicted)" 
+            value={`${peak} ppl`} 
+            sub={labels[peakIdx] ?? "--"}
+            accent="gold"
+          />
+          <MetricCard
+            label="Average (predicted)"
+            value={`${Math.round(predicted.reduce((a, b) => a + b, 0) / Math.max(predicted.length, 1))} ppl`}
+            sub="across the day"
+            accent="amber"
+          />
+          <MetricCard
+            label="Current hour (predicted)"
+            value={`${predicted[new Date().getHours()] ?? "--"} ppl`}
+            sub={new Date().toLocaleString([], { hour: "numeric" })}
+            accent="yellow"
+          />
+        </div>
+
+        {/* Graph Section */}
+        <GraphSection
+          libKey={libKey}
+          date={date}
+          family={family}
+          labels={labels}
+          predicted={predicted}
+          hours24={hours24}
         />
       </div>
-
-      <GraphSection
-        libKey={libKey}
-        date={date}
-        family={family}
-        labels={labels}
-        predicted={predicted}
-        hours24={hours24}
-      />
     </div>
   );
 }

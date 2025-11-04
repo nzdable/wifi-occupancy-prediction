@@ -36,7 +36,7 @@ export default function LibraryNav({ current }: { current: string }) {
         href={'/Student'}
         className="cursor-pointer"
       >
-        <h1 className="font-cinzel text-xl text-addu-ink">{currentTitle}</h1>
+        <h1 className="font-cinzel text-xl text-white">{currentTitle}</h1>
       </Link>
 
       <Link
