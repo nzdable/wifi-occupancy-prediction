@@ -11,14 +11,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .infer import get_series_df, load_artifacts_cached, walk_forward, ensure_dt_index_tz, correct_live_occupancy
+from .infer import get_series_df, load_artifacts_cached, walk_forward, ensure_dt_index_tz
 from .models import Library, Signal
 from .utils.active import get_active_family_version
 
 # If your clean_choice requires defaults, we’ll validate manually instead.
 FAMILIES = {"cnn", "lstm", "cnn_lstm", "cnn_lstm_attn"}
 PH_TZ = "Asia/Manila"
-
 
 # -------------------- parsing --------------------
 def parse_local_dt(s: str) -> pd.Timestamp:
@@ -48,9 +47,6 @@ def build_profile(library: Library, weeks: int = 8) -> Optional[pd.Series]:
         pd.DataFrame({"ts_local": ts_local, "wifi": df["wifi"].astype(int)})
         .dropna(subset=["ts_local"])
     )
-
-    frame["wifi"] = correct_live_occupancy(frame["wifi"], library.key)
-    frame["wifi"] = frame.round().astype(int)
 
     cutoff = pd.Timestamp.now(tz=PH_TZ) - pd.Timedelta(weeks=weeks)
     frame = frame.loc[frame["ts_local"] >= cutoff]
@@ -119,7 +115,7 @@ def _forecast_steps(
         steps=int(steps),
         base_index=idx,
         meta=meta,
-        lib_key=lib_key,
+        lib_key= lib_key
     )
 
 # -------------------- views --------------------
@@ -175,11 +171,27 @@ class ForecastAtView(APIView):
             }, status=200)
 
         last_known = history.index[-1]
+        last_known_value = history.iloc[-1]  # Get the actual value
         gap_h = int(np.ceil((when_utc - last_known).total_seconds() / 3600.0))
 
         base_vals = history.values.astype(float)
         base_index = pd.DatetimeIndex(history.index)  # satisfy type checkers
 
+        # FIXED LOGIC: Use actual data for very recent gaps when available
+        if gap_h <= 2 and last_known_value > 0:
+            # For gaps up to 2 hours with valid data, use actual measurement
+            # This is more reliable than forecasting with sparse data
+            return Response({
+                "ok": True, "stale": False, "mode": "actual",
+                "prediction": int(round(max(0, last_known_value))),
+                "library": lib.key, "model_family": family,
+                "model_version": meta.get("model_version"),
+                "data_ts_latest": last_known.isoformat(),
+                "requested_utc": when_utc.isoformat(),
+                "generated_at": timezone.now().isoformat(),
+            }, status=200)
+
+        # Original forecast logic for other cases
         if gap_h <= 2:
             yhat = float(_forecast_steps(model, scaler, window, base_vals, max(1, gap_h), base_index, meta, lib.key)[-1])
             return Response({
