@@ -95,8 +95,9 @@ export default function UploadCsvPanel() {
       const data = await res.json();
       setNotice({ kind: "success", text: `Uploaded successfully. ${data.rows_ingested} rows added.` });
       setFile(null);
-    } catch (err: any) {
-      setNotice({ kind: "error", text: err?.message || "Upload failed." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed.";
+      setNotice({ kind: "error", text: message });
     } finally {
       setUploading(false);
     }

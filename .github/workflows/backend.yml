@@ -62,25 +62,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
 
-      - name: Create dummy artifacts (so loader can run if invoked)
-        working-directory: ./backend
-        run: |
-          set -e
-          python - <<'PY'
-          import os, pathlib, json, pickle
-          base = pathlib.Path("artifacts")/"cnn"/"gisbert_3rd_floor"
-          base.mkdir(parents=True, exist_ok=True)
-          # Minimal preproc for CNN
-          preproc = {
-              "spec": {"window": 24, "feature_order": ["occupancy_scaled"], "numerical_names": ["occupancy_scaled"], "categorical_bases": []},
-              "occ_scaler": None  # tests that don't call inverse_transform won't care
-          }
-          with open(base/"preproc.pkl","wb") as f: pickle.dump(preproc,f)
-          with open(base/"meta.json","w") as f: json.dump({"model_version":"v1","horizons_min":[0],"model_family":"cnn"}, f)
-          # Tiny Keras model (avoid TensorFlow import by not creating one if tests don't require it)
-          # If you DO run prediction tests, build a 1-layer model here.
-          PY
-
       - name: Wait for Postgres
         run: |
           for i in {1..30}; do

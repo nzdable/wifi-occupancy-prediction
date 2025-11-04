@@ -1,14 +1,13 @@
-// app/Components/LibraryPredictCard.tsx
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 
 type Props = {
   libKey: string;
   title: string;
   capacity: number;
-  family?: string; // ← optional override
+  family?: string;
 };
 
 type AtResponse = {
@@ -22,7 +21,7 @@ type AtResponse = {
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
 // Build 'YYYY-MM-DDTHH:mm' in Asia/Manila
-function fmtPHNowYmdHM() {
+function fmtPHNowYmdHM(): string {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
     year: "numeric",
@@ -57,7 +56,7 @@ export default function LibraryPredictCard({ libKey, title, capacity, family }: 
     return { text: "High", color: "text-red-500", stroke: "#ef4444" };
   }, [percent]);
 
-  async function fetchNow() {
+  const fetchNow = useCallback(async () => {
     setErr(null);
     setLoading(true);
     inflight.current?.abort();
@@ -68,7 +67,7 @@ export default function LibraryPredictCard({ libKey, title, capacity, family }: 
     const u = new URL(`${API_BASE}/occupancy/forecast/at`);
     u.searchParams.set("library", libKey);
     u.searchParams.set("when", whenPH);
-    if (family) u.searchParams.set("family", family); // only if provided
+    if (family) u.searchParams.set("family", family);
 
     try {
       const res = await fetch(u.toString(), {
@@ -84,24 +83,25 @@ export default function LibraryPredictCard({ libKey, title, capacity, family }: 
 
       setCount(Math.max(0, Math.round(js.prediction)));
       setWhen(js.generated_at || whenPH);
-    } catch (e: any) {
-      const msg = String(e?.message || "");
-      if (e?.name === "AbortError" || msg.includes("aborted")) return;
-      setErr(msg || "Request failed");
+    } catch (e) {
+      const errObj = e as Error;
+      const msg = errObj?.message ?? "Request failed";
+      if (errObj.name === "AbortError" || msg.includes("aborted")) return;
+      setErr(msg);
     } finally {
       setLoading(false);
     }
-  }
+  }, [libKey, family]);
 
   useEffect(() => {
     fetchNow();
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(fetchNow, 60_000);
     return () => {
-      timerRef.current && clearInterval(timerRef.current);
+      if (timerRef.current) clearInterval(timerRef.current);
       inflight.current?.abort();
     };
-  }, [libKey, family]); // keep the same behaviour
+  }, [fetchNow]);
 
   const r = 54;
   const C = 2 * Math.PI * r;
@@ -111,7 +111,6 @@ export default function LibraryPredictCard({ libKey, title, capacity, family }: 
     return `${filled} ${C - filled}`;
   }, [percent, C]);
 
-  // Build the link; only add ?family= if overriding
   const href = family ? `/Student/${libKey}?family=${encodeURIComponent(family)}` : `/Student/${libKey}`;
 
   return (
